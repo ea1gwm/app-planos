@@ -1,0 +1,201 @@
+/* ============================================================
+   DIGI App Design System — v5.1
+   Copia este archivo a tu proyecto y úsalo como base de estilo.
+   ============================================================ */
+
+:root {
+  /* Fondos */
+  --bg-base:    #1a1d24;   /* body principal */
+  --bg-stage:   #0a0c10;   /* área de trabajo / canvas */
+  --bg-bar:     #0f1115;   /* topbar y toolbar */
+  --bg-panel:   #14171f;   /* paneles laterales y drawers */
+  --bg-card:    #1f2530;   /* botones y tarjetas */
+  --bg-card-hover: #2a3140;
+
+  /* Bordes */
+  --border:     #2a2f3a;
+
+  /* Azul primario */
+  --primary:        #2563eb;
+  --primary-hover:  #1d4ed8;
+  --primary-light:  #60a5fa;
+  --primary-glow:   rgba(37, 99, 235, 0.45);
+
+  /* Textos */
+  --text:       #e5e7eb;
+  --text-muted: #9ca3af;
+  --text-dim:   #6b7280;
+
+  /* Acentos */
+  --orange:  #fb923c;
+  --yellow:  #fef08a;
+
+  /* Tipografía */
+  --font: -apple-system, "Segoe UI", Roboto, sans-serif;
+
+  /* Radios */
+  --radius:    6px;
+  --radius-lg: 10px;
+}
+
+/* Reset base */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html, body {
+  height: 100vh; height: 100dvh;
+  font-family: var(--font);
+  background: var(--bg-base);
+  color: var(--text);
+  overflow: hidden;
+}
+
+/* ── PANTALLA DE BIENVENIDA ─────────────────────────────── */
+.welcome-screen {
+  position: absolute; inset: 0;
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  gap: 16px; text-align: center; padding: 20px;
+  background:
+    repeating-linear-gradient(0deg,   transparent 0px, transparent 39px, rgba(96,165,250,0.07) 40px),
+    repeating-linear-gradient(90deg,  transparent 0px, transparent 39px, rgba(96,165,250,0.07) 40px),
+    radial-gradient(ellipse at center, #1a2438 0%, #0a0c10 75%);
+}
+
+/* Logo principal estilo DIGI */
+.logo-hero {
+  font-size: clamp(56px, 16vw, 130px);
+  font-weight: 900;
+  letter-spacing: -3px;
+  line-height: 1;
+  background: linear-gradient(135deg, #60a5fa 0%, #2563eb 40%, #1d4ed8 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  filter: drop-shadow(0 0 40px rgba(37,99,235,0.5));
+}
+.logo-subtitle {
+  font-size: clamp(12px, 3vw, 20px);
+  font-weight: 600;
+  letter-spacing: 6px;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+.logo-version {
+  font-size: 11px; font-weight: 600; color: var(--primary);
+  background: rgba(37,99,235,0.12);
+  border: 1px solid rgba(37,99,235,0.3);
+  border-radius: 20px; padding: 3px 12px;
+  letter-spacing: 1px;
+}
+.logo-divider {
+  width: min(300px, 75vw); height: 3px; border-radius: 2px;
+  background: linear-gradient(90deg, transparent, var(--primary) 30%, var(--primary-light) 70%, transparent);
+  opacity: 0.5;
+}
+
+/* ── BARRA SUPERIOR ─────────────────────────────────────── */
+.topbar {
+  flex: 0 0 44px; display: flex; align-items: center; gap: 4px;
+  padding: 0 8px; background: var(--bg-bar);
+  border-bottom: 1px solid var(--border);
+}
+.topbar .logo-small { color: var(--primary); font-weight: 800; font-size: 14px; }
+.topbar .logo-ver   { font-size: 10px; color: var(--text-dim); font-weight: 600; margin-left: 3px; }
+
+/* ── BOTONES ────────────────────────────────────────────── */
+.btn {
+  padding: 8px 14px; border-radius: var(--radius);
+  background: var(--bg-card); color: var(--text);
+  font-family: var(--font); font-size: 13px; font-weight: 500;
+  border: none; cursor: pointer; transition: background 0.15s;
+}
+.btn:hover { background: var(--bg-card-hover); }
+
+.btn-primary {
+  background: var(--primary); color: #fff;
+  box-shadow: 0 4px 20px var(--primary-glow);
+}
+.btn-primary:hover { background: var(--primary-hover); }
+
+.btn-lg {
+  padding: 13px 32px; font-size: 15px; font-weight: 600;
+  border-radius: var(--radius-lg);
+}
+
+/* ── TOOLBAR / TOOL CHIPS ───────────────────────────────── */
+.toolbar {
+  background: var(--bg-bar); border-top: 1px solid var(--border);
+  padding: 6px 4px; display: flex; align-items: center;
+  gap: 4px; overflow-x: auto;
+}
+.tool-chip {
+  padding: 6px 10px; border-radius: var(--radius);
+  background: var(--bg-card); font-size: 11px; font-weight: 600;
+  color: var(--text); white-space: nowrap; cursor: pointer;
+  border: none; font-family: var(--font);
+  display: flex; align-items: center; gap: 4px;
+  transition: background 0.15s;
+}
+.tool-chip:hover { background: var(--bg-card-hover); }
+.tool-chip.active { background: var(--primary); color: #fff; }
+
+/* ── PANEL LATERAL ──────────────────────────────────────── */
+.panel {
+  position: fixed; right: 0; top: 44px; bottom: 56px;
+  width: min(380px, 95vw); background: var(--bg-panel);
+  border-left: 1px solid var(--border); padding: 16px;
+  overflow-y: auto; z-index: 50;
+  transform: translateX(100%);
+  transition: transform 0.25s ease;
+}
+.panel.open { transform: translateX(0); }
+.panel h2   { font-size: 14px; margin-bottom: 12px; font-weight: 600; }
+
+/* ── FORMULARIOS ────────────────────────────────────────── */
+.field { margin-bottom: 10px; }
+.field label {
+  display: block; font-size: 11px; color: var(--text-muted);
+  margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.3px;
+}
+.field input, .field select, .field textarea {
+  width: 100%; padding: 8px 10px;
+  background: var(--bg-card); border: 1px solid var(--border);
+  border-radius: var(--radius); color: var(--text); font-size: 13px;
+  font-family: var(--font);
+}
+.field input:focus, .field select:focus {
+  outline: none; border-color: var(--primary);
+}
+
+/* ── CÁLCULOS / TABLA ───────────────────────────────────── */
+.calc-box {
+  background: var(--bg-stage); padding: 10px;
+  border-radius: var(--radius); margin-bottom: 10px;
+}
+.calc-row {
+  display: flex; justify-content: space-between;
+  font-size: 12px; padding: 3px 0;
+}
+.calc-row.total {
+  font-weight: 700; font-size: 14px;
+  border-top: 1px solid var(--border);
+  margin-top: 6px; padding-top: 8px;
+  color: var(--primary-light);
+}
+
+/* ── TOAST ──────────────────────────────────────────────── */
+.toast {
+  position: fixed; bottom: 70px; left: 50%;
+  transform: translateX(-50%);
+  background: var(--bg-card); padding: 8px 14px;
+  border-radius: 8px; border: 1px solid var(--primary);
+  font-size: 12px; z-index: 200;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+}
+
+/* ── GRID DE FONDO (área de trabajo) ────────────────────── */
+.work-area {
+  background:
+    repeating-linear-gradient(0deg,   transparent 0px, transparent 39px, rgba(96,165,250,0.07) 40px),
+    repeating-linear-gradient(90deg,  transparent 0px, transparent 39px, rgba(96,165,250,0.07) 40px),
+    var(--bg-stage);
+}

@@ -1,0 +1,2091 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>Editor de Planos DIGI v5.1</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+  html, body { height: 100vh; height: 100dvh; overflow: hidden; font-family: -apple-system, "Segoe UI", Roboto, sans-serif; background: #1a1d24; color: #e5e7eb; user-select: none; }
+  button { font-family: inherit; cursor: pointer; border: none; background: none; color: inherit; }
+  input, select, textarea { font-family: inherit; user-select: text; }
+
+  .app { display: flex; flex-direction: column; height: 100vh; height: 100dvh; padding-bottom: env(safe-area-inset-bottom); }
+
+  /* TOP BAR */
+  .topbar { flex: 0 0 44px; display: flex; align-items: center; gap: 4px; padding: 0 8px; background: #0f1115; border-bottom: 1px solid #2a2f3a; }
+  .topbar .logo { color: #2563eb; font-weight: 800; font-size: 14px; }
+  .topbar .ver { font-size: 10px; color: #6b7280; font-weight: 600; margin-left: 3px; }
+  .topbar .spacer { flex: 1; }
+  .topbar button { padding: 5px 9px; border-radius: 6px; background: #1f2530; font-size: 12px; font-weight: 500; min-width: 36px; }
+  .topbar button:hover { background: #2a3140; }
+  .topbar button.primary { background: #2563eb; color: white; }
+  .topbar button.undo { background: #374151; font-size: 16px; padding: 5px 12px; }
+  .topbar button.undo:hover { background: #4b5563; }
+
+  /* STAGE */
+  .stage { flex: 1 1 auto; min-height: 0; position: relative; overflow: hidden; background: #0a0c10; touch-action: none; }
+  .stage.pan-mode { cursor: grab; }
+  .stage.panning { cursor: grabbing; }
+  .canvas-wrap { position: absolute; top: 0; left: 0; transform-origin: 0 0; }
+  canvas.bg { display: block; background: white; }
+  .canvas-wrap { visibility: hidden; }
+  svg.overlay { position: absolute; top: 0; left: 0; }
+
+  .empty-stage {
+    position: absolute; inset: 0;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    color: #93c5fd; padding: 20px; text-align: center; gap: 16px;
+    background:
+      repeating-linear-gradient(0deg, transparent 0px, transparent 39px, rgba(96,165,250,0.07) 40px),
+      repeating-linear-gradient(90deg, transparent 0px, transparent 39px, rgba(96,165,250,0.07) 40px),
+      radial-gradient(ellipse at center, #1a2438 0%, #0a0c10 75%);
+  }
+  .empty-stage .logo-wrap { display: flex; flex-direction: column; align-items: center; gap: 0; margin-bottom: 8px; }
+  .empty-stage .logo-main {
+    font-size: clamp(64px, 18vw, 140px);
+    font-weight: 900;
+    letter-spacing: -4px;
+    line-height: 1;
+    background: linear-gradient(135deg, #60a5fa 0%, #2563eb 40%, #1d4ed8 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    filter: drop-shadow(0 0 40px rgba(37,99,235,0.5));
+  }
+  .empty-stage .logo-sub {
+    font-size: clamp(13px, 3.5vw, 22px);
+    font-weight: 600;
+    letter-spacing: 6px;
+    text-transform: uppercase;
+    color: #64748b;
+    margin-top: -4px;
+  }
+  .empty-stage .logo-ver {
+    font-size: 11px;
+    font-weight: 600;
+    color: #2563eb;
+    background: rgba(37,99,235,0.12);
+    border: 1px solid rgba(37,99,235,0.3);
+    border-radius: 20px;
+    padding: 3px 12px;
+    margin-top: 10px;
+    letter-spacing: 1px;
+  }
+  .empty-stage .cable-line {
+    width: min(320px, 80vw);
+    height: 3px;
+    border-radius: 2px;
+    background: linear-gradient(90deg, transparent, #2563eb 30%, #60a5fa 70%, transparent);
+    opacity: 0.5;
+    margin: 4px 0;
+  }
+  .empty-stage p { font-size: 13px; color: #64748b; margin: 0; }
+  .empty-stage button {
+    padding: 13px 32px;
+    border-radius: 10px;
+    background: #2563eb;
+    color: white;
+    font-weight: 600;
+    font-size: 15px;
+    box-shadow: 0 4px 24px rgba(37,99,235,0.45);
+    margin-top: 4px;
+    transition: background 0.15s, transform 0.1s;
+  }
+  .empty-stage button:hover { background: #1d4ed8; transform: translateY(-1px); }
+  .empty-stage button:active { transform: translateY(0); }
+
+  /* COMPACT BOTTOM TOOLBAR */
+  .toolbar { flex: 0 0 auto; min-height: 52px; background: #0f1115; border-top: 1px solid #2a2f3a; padding: 6px 4px; padding-bottom: max(6px, env(safe-area-inset-bottom)); display: flex; align-items: center; gap: 4px; overflow-x: auto; scrollbar-width: thin; }
+  .toolbar::-webkit-scrollbar { height: 4px; }
+  .toolbar::-webkit-scrollbar-thumb { background: #2a3140; border-radius: 2px; }
+  .tool { padding: 6px 10px; border-radius: 6px; background: #1f2530; font-size: 11px; font-weight: 600; display: flex; align-items: center; gap: 4px; min-height: 36px; flex-shrink: 0; white-space: nowrap; }
+  .tool:hover { background: #2a3140; }
+  .tool.active { background: #2563eb; color: white; }
+  .tool .sw { width: 14px; height: 14px; border-radius: 3px; display: inline-block; border: 1px solid rgba(255,255,255,0.2); }
+  .tool .icon { font-size: 14px; }
+  .tool.divider { background: transparent; padding: 0; min-width: 1px; border-left: 1px solid #2a2f3a; min-height: 24px; pointer-events: none; cursor: default; }
+
+  /* FULL TOOLBAR DRAWER */
+  .drawer { position: fixed; left: 0; right: 0; bottom: 0; background: #14171f; border-top: 1px solid #2a2f3a; padding: 12px; max-height: 70vh; overflow-y: auto; transform: translateY(100%); transition: transform 0.25s ease; z-index: 60; box-shadow: 0 -4px 12px rgba(0,0,0,0.4); }
+  .drawer.open { transform: translateY(0); }
+  .drawer-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+  .drawer h3 { font-size: 13px; color: #e5e7eb; font-weight: 600; }
+  .drawer .close { padding: 4px 10px; background: #1f2530; border-radius: 6px; font-size: 12px; }
+  .drawer-section { margin-bottom: 10px; }
+  .drawer-section .label { font-size: 10px; color: #6b7280; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px; }
+  .drawer-section .tool-row { display: flex; gap: 4px; flex-wrap: wrap; }
+
+  /* PANELS */
+  .panel { position: fixed; right: 0; top: 44px; bottom: 56px; width: min(380px, 95vw); background: #14171f; border-left: 1px solid #2a2f3a; padding: 16px; overflow-y: auto; transform: translateX(100%); transition: transform 0.25s ease; z-index: 50; }
+  .panel.open { transform: translateX(0); }
+  .panel h2 { font-size: 14px; margin-bottom: 12px; color: #fff; font-weight: 600; }
+  .panel .close { position: absolute; top: 10px; right: 10px; padding: 4px 8px; background: #1f2530; border-radius: 4px; font-size: 12px; }
+  .field { margin-bottom: 10px; }
+  .field label { display: block; font-size: 11px; color: #9ca3af; margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.3px; }
+  .field input[type=text], .field input[type=number], .field input[type=date], .field select, .field textarea { width: 100%; padding: 8px 10px; background: #1f2530; border: 1px solid #2a3140; border-radius: 6px; color: #e5e7eb; font-size: 13px; }
+  .field.check { display: flex; align-items: center; gap: 6px; font-size: 12px; }
+  .field.check input { margin: 0; }
+  .field.check label { margin: 0; text-transform: none; letter-spacing: 0; color: #d1d5db; font-size: 12px; }
+  .calc { background: #0f1115; padding: 10px; border-radius: 6px; margin-bottom: 10px; }
+  .calc .row { display: flex; justify-content: space-between; font-size: 12px; padding: 3px 0; }
+  .calc .row.total { font-weight: 700; font-size: 14px; border-top: 1px solid #2a2f3a; margin-top: 6px; padding-top: 8px; color: #60a5fa; }
+  .calc .row.cable-row { background: #14171f; padding: 4px 6px; border-radius: 4px; margin: 4px 0; }
+  .calc .sw-mini { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 5px; vertical-align: middle; border: 1px solid rgba(255,255,255,0.2); }
+
+  /* POPUP */
+  .elem-popup { position: absolute; background: #14171f; border: 1px solid #2a2f3a; border-radius: 6px; padding: 10px; z-index: 100; box-shadow: 0 4px 12px rgba(0,0,0,0.5); display: none; min-width: 240px; max-width: 95vw; max-height: 88vh; overflow-y: auto; }
+  .elem-popup.open { display: block; }
+  .elem-popup .field { margin-bottom: 8px; }
+  .elem-popup .btn-row { display: flex; gap: 6px; }
+  .elem-popup .btn-row button { flex: 1; padding: 6px; border-radius: 4px; font-size: 11px; background: #1f2530; }
+  .elem-popup .btn-row button.del { background: #7f1d1d; color: #fecaca; }
+  .elem-popup .btn-row button.del-near { background: #b45309; color: #fef3c7; }
+  .elem-popup .btn-row button.ok { background: #2563eb; color: white; }
+
+  /* STACKED PICKER */
+  .stack-picker { position: absolute; background: #14171f; border: 1px solid #2563eb; border-radius: 6px; padding: 6px; z-index: 110; box-shadow: 0 4px 12px rgba(0,0,0,0.6); display: none; min-width: 200px; }
+  .stack-picker.open { display: block; }
+  .stack-picker .item { padding: 6px 8px; border-radius: 4px; font-size: 12px; cursor: pointer; display: flex; justify-content: space-between; align-items: center; }
+  .stack-picker .item:hover { background: #1f2530; }
+  .stack-picker .item .x { padding: 2px 6px; background: #7f1d1d; border-radius: 3px; font-size: 11px; color: #fecaca; }
+  .stack-picker .header { font-size: 10px; color: #6b7280; padding: 4px 8px; text-transform: uppercase; letter-spacing: 0.5px; }
+
+  /* MARKERS */
+  .marker { cursor: pointer; }
+  .marker:hover { filter: brightness(1.15); }
+  .selected { filter: drop-shadow(0 0 4px #fbbf24); }
+  .active-cable { filter: drop-shadow(0 0 3px #60a5fa); }
+
+  @media (max-width: 768px) {
+    .topbar button { padding: 4px 7px; font-size: 11px; min-width: 32px; }
+    .topbar .undo { padding: 4px 10px; }
+    .tool { padding: 5px 8px; font-size: 10px; }
+    .panel { width: 100vw; }
+  }
+
+  .active-cable-bar { position: absolute; top: 8px; left: 8px; padding: 4px 8px; border-radius: 6px; background: rgba(15,17,21,0.92); border: 1px solid #2a2f3a; color: #e5e7eb; font-size: 11px; z-index: 30; display: flex; align-items: center; gap: 6px; cursor: pointer; }
+  .active-cable-bar .sw { width: 14px; height: 14px; border-radius: 3px; border: 1px solid rgba(255,255,255,0.3); }
+
+  .pan-hint { position: absolute; bottom: 8px; left: 8px; padding: 6px 10px; border-radius: 6px; background: rgba(15,17,21,0.85); border: 1px solid #2a2f3a; color: #9ca3af; font-size: 10px; z-index: 30; max-width: 240px; line-height: 1.35; transition: opacity 0.3s; }
+  .pan-hint.hidden { opacity: 0; pointer-events: none; }
+  .pan-hint b { color: #60a5fa; }
+  .pan-hint .close-x { float: right; cursor: pointer; padding: 0 4px; color: #fff; }
+
+  .toast { position: fixed; bottom: 70px; left: 50%; transform: translateX(-50%); background: #1f2530; padding: 8px 14px; border-radius: 8px; border: 1px solid #2563eb; font-size: 12px; z-index: 200; box-shadow: 0 4px 12px rgba(0,0,0,0.5); }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <div class="topbar">
+    <span class="logo">DIGI<span class="ver">v5.1</span></span>
+    <span class="spacer"></span>
+    <button id="btnUndo" class="undo" title="Deshacer">↶</button>
+    <button id="btnSettings" title="Ajustes">⚙️</button>
+    <button id="btnProject" class="primary" title="Proyecto">📋</button>
+    <input type="file" id="fileInput" accept="image/*,application/pdf" style="display:none">
+    <button id="btnLoad" title="Cargar plano">📂</button>
+    <button id="btnExport" title="Descargar">💾</button>
+    <button id="btnShare" title="Compartir" style="display:none">📤</button>
+  </div>
+
+  <div class="stage" id="stage">
+    <div class="empty-stage" id="emptyStage">
+      <div class="logo-wrap">
+        <div class="logo-main">DIGI</div>
+        <div class="logo-sub">Editor de Planos</div>
+        <div class="logo-ver">v5.1</div>
+      </div>
+      <div class="cable-line"></div>
+      <p>Carga una imagen o PDF del plano base para comenzar</p>
+      <button onclick="document.getElementById('fileInput').click()">📂 Seleccionar archivo</button>
+    </div>
+    <div class="canvas-wrap" id="canvasWrap">
+      <canvas class="bg" id="bgCanvas"></canvas>
+      <svg class="overlay" id="overlay" xmlns="http://www.w3.org/2000/svg"></svg>
+    </div>
+    <div class="active-cable-bar" id="activeCableBar" style="display:none" title="Toca para desactivar">
+      <span class="sw" id="activeCableSw"></span>
+      <span id="activeCableLabel">—</span>
+    </div>
+    <div class="pan-hint hidden" id="panHint">
+      <span class="close-x" id="hintClose">✕</span>
+      📱 <b>1 dedo</b> = mover/colocar · <b>2 dedos</b> = zoom · <b>mantén pulsado</b> = borrar elemento
+    </div>
+  </div>
+
+  <!-- COMPACT TOOLBAR (always visible) -->
+  <div class="toolbar" id="toolbarCompact"></div>
+
+</div>
+
+<!-- FULL TOOLBAR DRAWER -->
+<div class="drawer" id="drawerFull">
+  <div class="drawer-header">
+    <h3>Herramientas</h3>
+    <button class="close" onclick="closeDrawer()">✕</button>
+  </div>
+  <div class="drawer-section">
+    <div class="label">Cables (clic = nuevo · clic en cable existente = activar)</div>
+    <div class="tool-row" id="drawerCables"></div>
+  </div>
+  <div class="drawer-section">
+    <div class="label">Resaltado con color del cable</div>
+    <div class="tool-row" id="drawerCableHl"></div>
+  </div>
+  <div class="drawer-section">
+    <div class="label">Tramos (metros + letra)</div>
+    <div class="tool-row" id="drawerTramos"></div>
+  </div>
+  <div class="drawer-section">
+    <div class="label">Elementos</div>
+    <div class="tool-row" id="drawerElems"></div>
+  </div>
+  <div class="drawer-section">
+    <div class="label">Anotaciones y valonas</div>
+    <div class="tool-row" id="drawerAnnots"></div>
+    <div class="tool-row" style="margin-top:6px">
+      <button class="tool" style="background:#7f1d1d;color:#fecaca" onclick="insertarListaNotas();closeDrawer()">📋 Insertar/actualizar lista de notas</button>
+    </div>
+    <div style="font-size:10px;color:#4b5563;margin-top:4px;line-height:1.4">
+      Coloca asteriscos ✱ en el mapa, toca cada uno para escribir su nota, y pulsa aquí para generar el recuadro con todas las notas numeradas.
+    </div>
+  </div>
+  <div class="drawer-section" style="border-top:1px solid #2a2f3a;margin-top:4px;padding-top:10px">
+    <div class="label">🔍 Auto-detección (OCR)</div>
+    <div style="font-size:10px;color:#6b7280;margin-bottom:8px;line-height:1.5">
+      Los planos DIGI son imagen — primero ejecuta el OCR (1-3 min, solo la primera vez), luego marca los elementos detectados.
+    </div>
+    <div class="tool-row" style="flex-wrap:wrap;gap:6px">
+      <button class="tool" style="background:#2563eb;color:white;font-size:12px" onclick="ejecutarOCR();closeDrawer()">▶ Ejecutar OCR</button>
+    </div>
+    <div class="tool-row" style="flex-wrap:wrap;gap:6px;margin-top:8px">
+      <button class="tool" style="background:#854d0e;color:#fef9c3" onclick="detectarPatronPDF('arq')">🟡 ARQ</button>
+      <button class="tool" style="background:#854d0e;color:#fef9c3" onclick="detectarPatronPDF('cr')">🟡 CR</button>
+      <button class="tool" style="background:#9a3412;color:#fed7aa" onclick="detectarPatronPDF('empalme')">🟠 0xE...</button>
+      <button class="tool" style="background:#854d0e;color:#fef9c3" onclick="detectarPatronPDF('cto')">🟡 CTO</button>
+      <button class="tool" style="background:#854d0e;color:#fef9c3" onclick="detectarPatronPDF('poste')">🟡 L...</button>
+    </div>
+    <div style="font-size:10px;color:#4b5563;margin-top:6px;line-height:1.4">
+      Toca sobre cualquier marca incorrecta para borrarla. El OCR puede tener errores en mapas complejos — revisa el resultado.
+    </div>
+  </div>
+</div>
+
+<!-- POPUP -->
+<div class="elem-popup" id="elemPopup">
+  <div class="field" id="popupMetersWrap" style="display:none">
+    <label id="popupMetersLabel">Metros</label>
+    <input type="number" id="popupMeters" min="0" step="1">
+  </div>
+  <div class="field" id="popupLabelWrap">
+    <label id="popupLabelLabel">Etiqueta</label>
+    <input type="text" id="popupLabel" placeholder="">
+  </div>
+  <div class="field" id="popupCableWrap" style="display:none">
+    <label>Cable al que pertenece</label>
+    <select id="popupCable"></select>
+  </div>
+  <div class="field" id="popupSizeWrap" style="display:none">
+    <label>Tamaño de letra (px)</label>
+    <input type="number" id="popupSize" min="8" max="48" step="1" value="14">
+  </div>
+  <div class="field check" id="popupBoldWrap" style="display:none">
+    <input type="checkbox" id="popupBold">
+    <label for="popupBold">Negrita</label>
+  </div>
+  <div class="field check" id="popupBgWrap" style="display:none">
+    <input type="checkbox" id="popupBg">
+    <label for="popupBg">Caja blanca de fondo</label>
+  </div>
+  <div class="field" id="popupBgColorWrap" style="display:none">
+    <label>Resaltar fondo (rotulador)</label>
+    <div style="display:flex;gap:6px;">
+      <button type="button" class="bg-color-btn" data-color="" style="flex:1;padding:6px;border-radius:4px;background:#1f2530;border:1px solid #2a3140;font-size:11px;color:#e5e7eb;">Sin fondo</button>
+      <button type="button" class="bg-color-btn" data-color="#fef08a" style="flex:1;padding:6px;border-radius:4px;background:#fef08a;color:#000;font-size:11px;font-weight:600;">🟨 Amarillo</button>
+      <button type="button" class="bg-color-btn" data-color="#fb923c" style="flex:1;padding:6px;border-radius:4px;background:#fb923c;color:#000;font-size:11px;font-weight:600;">🟧 Naranja</button>
+    </div>
+    <label style="margin-top:8px;">Fondo sólido color cable (cubre la casilla)</label>
+    <div id="popupCableColors" style="display:flex;gap:6px;flex-wrap:wrap;"></div>
+  </div>
+  <div class="btn-row">
+    <button class="del" id="popupDel">Borrar</button>
+    <button class="del-near" id="popupDelNear" title="Borra todos los elementos dentro de 25px">Borrar cerca</button>
+    <button class="ok" id="popupOk">OK</button>
+  </div>
+</div>
+
+<!-- STACKED PICKER -->
+<div class="stack-picker" id="stackPicker">
+  <div class="header">Varios elementos aquí:</div>
+  <div id="stackList"></div>
+</div>
+
+<!-- SETTINGS PANEL -->
+<div class="panel" id="settingsPanel">
+  <button class="close" onclick="closePanel('settingsPanel')">✕</button>
+  <h2>⚙️ Ajustes</h2>
+  <div class="field">
+    <label>Equipo</label>
+    <input type="text" id="setEquipo" placeholder="Ej: CG1">
+  </div>
+  <div class="field">
+    <label>Nombre del encargado</label>
+    <input type="text" id="setNombre" placeholder="Ej: Braulio López Pardavila">
+  </div>
+  <div class="field">
+    <label>Letra de tramo por defecto</label>
+    <select id="setDefaultLetra">
+      <option value="A">A</option><option value="B">B</option><option value="F">F</option>
+      <option value="C">C</option><option value="X">X</option><option value="D">D</option>
+      <option value="">— (aéreo)</option>
+    </select>
+  </div>
+  <div class="field">
+    <label>Tamaño texto por defecto (px)</label>
+    <input type="number" id="setDefaultTextSize" value="14" min="8" max="48">
+  </div>
+  <h2 style="margin-top:20px;">Grapeo (editable según tamaño)</h2>
+  <div class="field">
+    <label>Grapeo CR (m)</label>
+    <input type="number" id="setGrapeoCr" value="5">
+  </div>
+  <div class="field">
+    <label>Grapeo ARQ (m)</label>
+    <input type="number" id="setGrapeoArq" value="3">
+  </div>
+</div>
+
+<!-- PROJECT PANEL -->
+<div class="panel" id="projectPanel">
+  <button class="close" onclick="closePanel('projectPanel')">✕</button>
+  <h2>📋 Datos del proyecto</h2>
+  <div class="field">
+    <label>Título del plano (auto si vacío)</label>
+    <input type="text" id="prjTitle" placeholder="Auto: Plano Suc XXX 12FO">
+  </div>
+  <div class="field">
+    <label>Proyecto</label>
+    <input type="text" id="prjName" placeholder="Ej: BRIÓN (AMES ÁRBOL 1)">
+  </div>
+  <div class="field">
+    <label>SUC (varias separadas por coma)</label>
+    <input type="text" id="prjSuc" placeholder="Ej: 12345">
+  </div>
+  <div class="field">
+    <label>Empalmes (para título si no hay SUC)</label>
+    <input type="text" id="prjEmpalmes" placeholder="Ej: 01E5173-131205">
+  </div>
+  <div class="field">
+    <label>Fecha</label>
+    <input type="date" id="prjFecha">
+  </div>
+  <div class="field">
+    <label>Texto cajetín (Tipo cable, capa, fabricante)</label>
+    <input type="text" id="prjCableText" placeholder="Ej: 12FO COMEL">
+  </div>
+
+  <h2 style="margin-top:16px;">📐 Cálculos</h2>
+  <div class="calc" id="calcBox"></div>
+
+  <h2 style="margin-top:16px;">💾 Exportación</h2>
+  <div class="field check">
+    <input type="checkbox" id="prjAddCajetin">
+    <label for="prjAddCajetin">Añadir cajetín de resumen (el plano ya suele traer uno)</label>
+  </div>
+</div>
+
+<div class="toast" id="toast" style="display:none"></div>
+
+<script>
+'use strict';
+
+// ============================================================
+// CONFIG
+// ============================================================
+const CABLE_TYPES = [
+  { id: '12KP',  color: '#0000FF' }, { id: '24KP',  color: '#008000' },
+  { id: '48KP',  color: '#FF00FF' }, { id: '96KP',  color: '#8B4513' },
+  { id: '144KP', color: '#1a1a1a' }, { id: '192KP', color: '#D3D3D3' },
+  { id: '288KP', color: '#00FFFF' }, { id: '512KP', color: '#FF0000' },
+  { id: '576FO', color: '#8B0000' },
+];
+
+const TRAMO_LETRAS = [
+  { letra: 'A', desc: 'Canalizado vacío',      sumaMalla: true  },
+  { letra: 'B', desc: 'Canalizado compartido', sumaMalla: true  },
+  { letra: 'F', desc: 'Malla existente',       sumaMalla: false },
+  { letra: 'C', desc: 'Subconducto',           sumaMalla: false },
+  { letra: 'X', desc: 'Subc. otra compañía',   sumaMalla: false },
+  { letra: 'D', desc: 'Salida lateral',        sumaMalla: false },
+  { letra: '', desc: 'Aéreo',                  sumaMalla: false },
+];
+
+const ELEM_TYPES = [
+  { id: 'CR',    label: 'CR'    }, { id: 'ARQ',   label: 'ARQ'   },
+  { id: 'POSTE', label: 'Poste' }, { id: 'CTO',   label: 'CTO'   },
+];
+
+const DRAG_THRESHOLD = 6;
+const LONG_PRESS_MS = 600;
+
+// Compact toolbar layout (most-used first)
+const COMPACT_TOOLS = [
+  { type: 'cable', cable: '12KP' },
+  { type: 'cable', cable: '24KP' },
+  { type: 'cable', cable: '48KP' },
+  { type: 'cable', cable: '96KP' },
+  { type: 'divider' },
+  { type: 'text' },
+  { type: 'hl', color: '#fef08a', icon: '🟨' },
+  { type: 'hl', color: '#fb923c', icon: '🟧' },
+  { type: 'divider' },
+  { type: 'tramo', letra: 'A' },
+  { type: 'tramo', letra: 'B' },
+  { type: 'tramo', letra: 'F' },
+  { type: 'divider' },
+  { type: 'valona', meters: 20, icon: '🟠20' },
+  { type: 'valona', meters: 10, icon: '🟠10' },
+  { type: 'divider' },
+  { type: 'more' },
+];
+
+// ============================================================
+// STATE
+// ============================================================
+const state = {
+  tool: null, toolData: {},
+  elements: [], selectedId: null, activeCableId: null,
+  pendingPath: null,
+  scale: 1, panX: 0, panY: 0,
+  bgWidth: 0, bgHeight: 0, bgLoaded: false,
+  history: [],
+};
+const settings = { equipo: '', nombre: '', grapeoCr: 5, grapeoArq: 3, defaultLetra: 'A', defaultTextSize: 14 };
+const project = { title: '', name: '', suc: '', empalmes: '', fecha: '', cableText: '', addCajetin: false };
+
+let spaceDown = false;
+let dragState = null;
+let pinch = null;
+let popupElement = null;
+let longPressTimer = null;
+
+// ============================================================
+// PERSISTENCE
+// ============================================================
+function saveSettings() { localStorage.setItem('digi_settings_v5', JSON.stringify(settings)); }
+function loadSettings() {
+  const s = localStorage.getItem('digi_settings_v5');
+  if (s) Object.assign(settings, JSON.parse(s));
+}
+
+// ============================================================
+// TOOLBAR BUILDING
+// ============================================================
+function buildToolbar() {
+  // COMPACT (single row)
+  const tc = document.getElementById('toolbarCompact');
+  COMPACT_TOOLS.forEach(c => {
+    if (c.type === 'divider') {
+      const d = document.createElement('span');
+      d.className = 'tool divider';
+      tc.appendChild(d);
+      return;
+    }
+    const b = document.createElement('button');
+    b.className = 'tool';
+    if (c.type === 'cable') {
+      const ct = CABLE_TYPES.find(x => x.id === c.cable);
+      b.innerHTML = `<span class="sw" style="background:${ct.color}"></span>${ct.id}`;
+      b.onclick = () => selectTool('cable', { cableType: ct.id, color: ct.color });
+      b.dataset.tool = 'cable-' + ct.id;
+    } else if (c.type === 'text') {
+      b.innerHTML = `<span class="icon">📝</span>TXT`;
+      b.onclick = () => selectTool('text', {});
+      b.dataset.tool = 'text';
+    } else if (c.type === 'hl') {
+      b.innerHTML = `<span class="icon">${c.icon}</span>`;
+      const tool = c.color === '#fef08a' ? 'hl-yellow' : 'hl-orange';
+      b.onclick = () => selectTool(tool, { color: c.color });
+      b.dataset.tool = tool;
+    } else if (c.type === 'tramo') {
+      const t = TRAMO_LETRAS.find(x => x.letra === c.letra);
+      b.innerHTML = `<span class="icon">${c.letra}</span>`;
+      b.title = t.desc;
+      b.onclick = () => selectTool('tramo', { letra: t.letra, sumaMalla: t.sumaMalla });
+      b.dataset.tool = 'tramo-' + t.letra;
+    } else if (c.type === 'valona') {
+      b.innerHTML = `<span class="icon">${c.icon}</span>`;
+      const tid = c.meters === 20 ? 'valona-cr' : 'valona-arq';
+      b.onclick = () => selectTool(tid, { meters: c.meters });
+      b.dataset.tool = tid;
+    } else if (c.type === 'more') {
+      b.innerHTML = `⋯ Más`;
+      b.style.background = '#2563eb';
+      b.style.color = 'white';
+      b.onclick = openDrawer;
+    }
+    tc.appendChild(b);
+  });
+
+  // FULL DRAWER
+  const drawerCables = document.getElementById('drawerCables');
+  CABLE_TYPES.forEach(ct => {
+    const b = document.createElement('button');
+    b.className = 'tool';
+    b.innerHTML = `<span class="sw" style="background:${ct.color}"></span>${ct.id}`;
+    b.onclick = () => { selectTool('cable', { cableType: ct.id, color: ct.color }); closeDrawer(); };
+    b.dataset.tool = 'cable-' + ct.id;
+    drawerCables.appendChild(b);
+  });
+
+  const drawerCableHl = document.getElementById('drawerCableHl');
+  CABLE_TYPES.forEach(ct => {
+    const b = document.createElement('button');
+    b.className = 'tool';
+    b.innerHTML = `<span class="sw" style="background:${ct.color}"></span>HL ${ct.id}`;
+    b.onclick = () => { selectTool('hl-cable', { color: ct.color, cableTypeRef: ct.id }); closeDrawer(); };
+    b.dataset.tool = 'hl-cable-' + ct.id;
+    drawerCableHl.appendChild(b);
+  });
+
+  const drawerTramos = document.getElementById('drawerTramos');
+  TRAMO_LETRAS.forEach(t => {
+    const b = document.createElement('button');
+    b.className = 'tool';
+    b.title = t.desc;
+    b.innerHTML = `<span class="icon">${t.letra || '—'}</span>`;
+    b.onclick = () => { selectTool('tramo', { letra: t.letra, sumaMalla: t.sumaMalla }); closeDrawer(); };
+    b.dataset.tool = 'tramo-' + (t.letra || 'AEREO');
+    drawerTramos.appendChild(b);
+  });
+
+  const drawerElems = document.getElementById('drawerElems');
+  ELEM_TYPES.forEach(e => {
+    const b = document.createElement('button');
+    b.className = 'tool';
+    b.innerHTML = e.label;
+    b.onclick = () => { selectTool('elem', { elemType: e.id }); closeDrawer(); };
+    b.dataset.tool = 'elem-' + e.id;
+    drawerElems.appendChild(b);
+  });
+
+  const drawerAnnots = document.getElementById('drawerAnnots');
+  [
+    { id: 'valona-cr', label: '🟠 Valona 20', meters: 20 },
+    { id: 'valona-arq', label: '🟠 Valona 10', meters: 10 },
+    { id: 'hl-yellow', label: '🟨 Amarillo', color: '#fef08a' },
+    { id: 'hl-orange', label: '🟧 Naranja', color: '#fb923c' },
+    { id: 'text', label: '📝 Texto' },
+    { id: 'xmark', label: '❌ X anular' },
+    { id: 'nota', label: '✱ Asterisco/nota' },
+  ].forEach(a => {
+    const b = document.createElement('button');
+    b.className = 'tool';
+    b.innerHTML = a.label;
+    b.onclick = () => { selectTool(a.id, { meters: a.meters, color: a.color }); closeDrawer(); };
+    b.dataset.tool = a.id;
+    drawerAnnots.appendChild(b);
+  });
+}
+
+function openDrawer() { document.getElementById('drawerFull').classList.add('open'); }
+function closeDrawer() { document.getElementById('drawerFull').classList.remove('open'); }
+window.closeDrawer = closeDrawer;
+
+function selectTool(tool, data) {
+  if (state.tool === tool && JSON.stringify(state.toolData) === JSON.stringify(data)) {
+    state.tool = null; state.toolData = {};
+    finishPath();
+  } else {
+    if (state.tool === 'cable' && tool !== 'cable') finishPath();
+    state.tool = tool; state.toolData = data;
+  }
+  updateToolUI();
+}
+
+function updateToolUI() {
+  document.querySelectorAll('.tool[data-tool]').forEach(b => b.classList.remove('active'));
+  if (!state.tool) return;
+  let key = state.tool;
+  if (state.tool === 'cable') key = 'cable-' + state.toolData.cableType;
+  else if (state.tool === 'hl-cable') key = 'hl-cable-' + state.toolData.cableTypeRef;
+  else if (state.tool === 'tramo') key = 'tramo-' + (state.toolData.letra || 'AEREO');
+  else if (state.tool === 'elem') key = 'elem-' + state.toolData.elemType;
+  document.querySelectorAll(`.tool[data-tool="${key}"]`).forEach(b => b.classList.add('active'));
+}
+
+// ============================================================
+// ACTIVE CABLE
+// ============================================================
+function setActiveCable(c) { state.activeCableId = c ? c.id : null; updateActiveCableUI(); redraw(); }
+function getActiveCable() { return state.elements.find(e => e.id === state.activeCableId); }
+function updateActiveCableUI() {
+  const bar = document.getElementById('activeCableBar');
+  const c = getActiveCable();
+  if (!c) { bar.style.display = 'none'; return; }
+  bar.style.display = 'flex';
+  document.getElementById('activeCableSw').style.background = c.color;
+  document.getElementById('activeCableLabel').textContent = 'Activo: ' + c.cableType;
+}
+
+// ============================================================
+// SETTINGS / PROJECT
+// ============================================================
+function syncSettingsToUI() {
+  ['equipo','nombre','grapeoCr','grapeoArq','defaultLetra','defaultTextSize'].forEach(k => {
+    const el = document.getElementById('set' + k[0].toUpperCase() + k.slice(1));
+    if (el) el.value = settings[k];
+  });
+}
+function syncSettingsFromUI() {
+  settings.equipo = document.getElementById('setEquipo').value;
+  settings.nombre = document.getElementById('setNombre').value;
+  settings.grapeoCr = +document.getElementById('setGrapeoCr').value || 0;
+  settings.grapeoArq = +document.getElementById('setGrapeoArq').value || 0;
+  settings.defaultLetra = document.getElementById('setDefaultLetra').value;
+  settings.defaultTextSize = +document.getElementById('setDefaultTextSize').value || 14;
+  saveSettings();
+  updateCalc();
+}
+function syncProjectFromUI() {
+  project.title = document.getElementById('prjTitle').value;
+  project.name = document.getElementById('prjName').value;
+  project.suc = document.getElementById('prjSuc').value;
+  project.empalmes = document.getElementById('prjEmpalmes').value;
+  project.fecha = document.getElementById('prjFecha').value;
+  project.cableText = document.getElementById('prjCableText').value;
+  project.addCajetin = document.getElementById('prjAddCajetin').checked;
+  updateCalc();
+}
+
+function getTitle() {
+  if (project.title) return project.title;
+  const cableTypes = [...new Set(state.elements.filter(e => e.type === 'cable').map(e => e.cableType))];
+  const cableStr = cableTypes.length ? cableTypes.join('+') : (project.cableText || '');
+  const sucPart = project.suc ? 'Suc ' + project.suc : (project.empalmes || '');
+  return ['Plano', sucPart, cableStr].filter(s => s).join(' ').trim() || 'Plano';
+}
+
+// ============================================================
+// CALCULATIONS
+// ============================================================
+function calcMalla() {
+  let t = 0;
+  state.elements.forEach(el => { if (el.type === 'tramo' && el.sumaMalla) t += +el.meters || 0; });
+  return t;
+}
+function calcMallaDetallada() {
+  // Totales por letra (A, B) y por cable
+  const porLetra = {};
+  const porCable = {}; // cableId → metros
+  state.elements.forEach(el => {
+    if (el.type !== 'tramo' || !el.sumaMalla) return;
+    const m = +el.meters || 0;
+    if (!m) return;
+    const letra = el.letra || '?';
+    porLetra[letra] = (porLetra[letra] || 0) + m;
+    const cableId = el.cableId || '__unassigned__';
+    porCable[cableId] = (porCable[cableId] || 0) + m;
+  });
+  return { porLetra, porCable };
+}
+function calcPerCable() {
+  const cables = state.elements.filter(e => e.type === 'cable');
+  const map = new Map();
+  cables.forEach(c => map.set(c.id, { type: c.cableType, color: c.color, tramos: 0, valonas: 0, grapeo: 0 }));
+  map.set('__unassigned__', { type: 'Sin asignar', color: '#6b7280', tramos: 0, valonas: 0, grapeo: 0 });
+  state.elements.forEach(el => {
+    const key = el.cableId && map.has(el.cableId) ? el.cableId : '__unassigned__';
+    const m = map.get(key);
+    if (el.type === 'tramo') m.tramos += +el.meters || 0;
+    else if (el.type === 'valona') m.valonas += +el.meters || 0;
+    else if (el.type === 'elem') {
+      if (el.elemType === 'CR') m.grapeo += settings.grapeoCr;
+      else if (el.elemType === 'ARQ') m.grapeo += settings.grapeoArq;
+    }
+  });
+  const result = [];
+  map.forEach((v, k) => {
+    v.total = v.tramos + v.valonas + v.grapeo;
+    if (k === '__unassigned__' && v.total === 0) return;
+    result.push({ id: k, ...v });
+  });
+  return result;
+}
+function updateCalc() {
+  const m = calcMalla();
+  const { porLetra, porCable } = calcMallaDetallada();
+  const perCable = calcPerCable();
+
+  // Desglose de malla por letra
+  const letraStr = Object.entries(porLetra)
+    .sort((a,b) => a[0].localeCompare(b[0]))
+    .map(([l, v]) => `<b>${l||'—'}:</b> ${v} m`)
+    .join(' &nbsp;·&nbsp; ');
+
+  // Desglose de malla por cable
+  let mallaCableRows = '';
+  Object.entries(porCable).forEach(([cid, metros]) => {
+    const cable = state.elements.find(e => e.id === cid);
+    if (!cable && cid !== '__unassigned__') return;
+    const color = cable ? cable.color : '#6b7280';
+    const tipo = cable ? cable.cableType : 'Sin asignar';
+    mallaCableRows += `<div class="row" style="font-size:10px;color:#9ca3af;margin-left:10px">
+      <span><span class="sw-mini" style="background:${color}"></span>${tipo}</span>
+      <span>${metros} m</span></div>`;
+  });
+
+  let html = `
+    <div class="row" style="border-bottom:1px solid #2a2f3a;padding-bottom:6px;margin-bottom:6px">
+      <span style="font-size:11px;color:#9ca3af">MALLA TOTAL (A+B)</span>
+      <span><b style="font-size:16px;color:#60a5fa">${m} m</b></span>
+    </div>`;
+
+  if (letraStr) {
+    html += `<div class="row" style="font-size:10px;color:#6b7280;margin-bottom:2px"><span>${letraStr}</span></div>`;
+  }
+  html += mallaCableRows;
+
+  if (perCable.length === 0) {
+    html += `<div class="row" style="margin-top:8px"><span>Cable</span><span>0 m</span></div>`;
+  } else {
+    // Contar cuántas tiradas hay por tipo de cable
+    const totalPorTipo = {};
+    perCable.forEach(c => { totalPorTipo[c.type] = (totalPorTipo[c.type] || 0) + 1; });
+    const contadorTipo = {};
+
+    html += `<div style="margin-top:10px;border-top:1px solid #2a2f3a;padding-top:8px;font-size:10px;color:#6b7280;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px">Tiradas</div>`;
+    perCable.forEach(c => {
+      contadorTipo[c.type] = (contadorTipo[c.type] || 0) + 1;
+      const hayVarias = totalPorTipo[c.type] > 1;
+      const tiradaLabel = hayVarias ? ` <span style="color:#6b7280;font-weight:400;font-size:10px">T${contadorTipo[c.type]}</span>` : '';
+      html += `<div class="row cable-row">
+        <span><span class="sw-mini" style="background:${c.color}"></span><b>${c.type}</b>${tiradaLabel}</span>
+        <span><b>${c.total} m</b></span></div>
+        <div class="row" style="font-size:10px;color:#9ca3af;margin-left:18px;margin-bottom:4px">
+          <span>tramos <b>${c.tramos}</b> · valonas <b>${c.valonas}</b> · grapeo <b>${c.grapeo}</b></span>
+        </div>`;
+    });
+  }
+  document.getElementById('calcBox').innerHTML = html;
+}
+
+// ============================================================
+// AUTO-DETECCIÓN POR TEXTO (solo PDFs con capa de texto)
+// ============================================================
+// Patrones reconocidos:
+//   ARQ...        → texto con fondo amarillo
+//   CR...         → texto con fondo amarillo
+//   01E/02E/03E.. → texto con fondo naranja (empalme)
+//   6 dígitos     → texto con fondo amarillo (CTO)
+//   L + 5+ dígitos → texto con fondo amarillo (Poste)
+
+const PATRONES_PDF = [
+  { id: 'arq',      regex: /^ARQ/i,           color: '#fef08a', etiqueta: 'ARQ' },
+  { id: 'cr',       regex: /^CR\b/i,           color: '#fef08a', etiqueta: 'CR' },
+  { id: 'empalme',  regex: /^0[1-9]E/i,        color: '#fb923c', etiqueta: 'Empalme' },
+  { id: 'cto',      regex: /^\d{6}$/,           color: '#fef08a', etiqueta: 'CTO' },
+  { id: 'poste',    regex: /^L\d{5,}/i,         color: '#fef08a', etiqueta: 'Poste' },
+];
+
+// Fusiona la palabra que coincide con las palabras vecinas de la MISMA línea
+// (a su derecha) para abarcar la etiqueta completa, p.ej. "ARQ" + "D" + "5736".
+function cajaEtiquetaCompleta(match, todas) {
+  if (match.x0 === undefined) return null;
+  let { x0, y0, x1, y1 } = match;
+  const alturaLinea = (match.y1 - match.y0) || 12;
+  let cambiado = true, usados = new Set([match]);
+  while (cambiado) {
+    cambiado = false;
+    for (const w of todas) {
+      if (usados.has(w) || w.x0 === undefined) continue;
+      const centroY = (w.y0 + w.y1) / 2;
+      const mismaLinea = centroY >= y0 - alturaLinea*0.5 && centroY <= y1 + alturaLinea*0.5;
+      const huecoDer = w.x0 - x1;          // hueco a la derecha del grupo
+      const huecoIzq = x0 - w.x1;          // hueco a la izquierda del grupo
+      const cerca = (huecoDer >= -2 && huecoDer < alturaLinea*1.8) ||
+                    (huecoIzq >= -2 && huecoIzq < alturaLinea*1.8);
+      if (mismaLinea && cerca) {
+        x0 = Math.min(x0, w.x0); y0 = Math.min(y0, w.y0);
+        x1 = Math.max(x1, w.x1); y1 = Math.max(y1, w.y1);
+        usados.add(w); cambiado = true;
+      }
+    }
+  }
+  return { x0, y0, x1, y1 };
+}
+
+function detectarPatronPDF(patronId) {
+  if (!state.bgLoaded) { toast('Carga un plano primero'); return; }
+  if (!state.pdfTexts || state.pdfTexts.length === 0) {
+    toast('Ejecuta el OCR primero (botón ▶ Ejecutar OCR)'); return;
+  }
+  const patron = PATRONES_PDF.find(p => p.id === patronId);
+  if (!patron) return;
+
+  const encontrados = state.pdfTexts.filter(t => patron.regex.test(t.text));
+  if (encontrados.length === 0) {
+    toast(`No se encontró ningún "${patron.etiqueta}"`); return;
+  }
+
+  if (!confirm(`Se encontraron ${encontrados.length} "${patron.etiqueta}".\n¿Resaltarlos en el plano?\n\nSe pintará un recuadro de color sobre la etiqueta (sin tapar el texto original). Toca para borrar los incorrectos.`)) return;
+
+  pushHistory();
+  encontrados.forEach(item => {
+    const caja = cajaEtiquetaCompleta(item, state.pdfTexts) || { x0: item.x, y0: item.y, x1: item.x + 30, y1: item.y + 12 };
+    const pad = 2;
+    state.elements.push({
+      id: newId(), type: 'highlight',
+      color: patron.color,
+      x1: caja.x0 - pad, y1: caja.y0 - pad,
+      x2: caja.x1 + pad, y2: caja.y1 + pad
+    });
+  });
+  redraw();
+  toast(`✓ ${encontrados.length} ${patron.etiqueta} resaltados · ↶ para deshacer`);
+}
+window.detectarPatronPDF = detectarPatronPDF;
+
+// ============================================================
+// OCR CON TESSERACT.JS (para PDFs rasterizados sin capa texto)
+// ============================================================
+let _ocrCargando = false;
+
+async function ejecutarOCR() {
+  if (!state.bgLoaded) { toast('Carga un plano primero'); return; }
+  if (_ocrCargando) { toast('OCR ya en marcha...'); return; }
+
+  // Cargar Tesseract.js de CDN solo la primera vez
+  if (!window.Tesseract) {
+    toast('⏳ Descargando motor OCR (~15 MB)...');
+    await new Promise((res, rej) => {
+      const s = document.createElement('script');
+      s.src = 'https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js';
+      s.onload = res; s.onerror = () => rej(new Error('No se pudo cargar Tesseract.js'));
+      document.head.appendChild(s);
+    }).catch(e => { toast('Error: ' + e.message); throw e; });
+  }
+
+  _ocrCargando = true;
+  toast('🔍 Preparando OCR...');
+
+  try {
+    // Reescalar el plano x2 para que el texto pequeño sea legible por el OCR
+    const src = document.getElementById('bgCanvas');
+    const SCALE = 2;
+    const big = document.createElement('canvas');
+    big.width = src.width * SCALE;
+    big.height = src.height * SCALE;
+    const bctx = big.getContext('2d');
+    bctx.imageSmoothingEnabled = true;
+    bctx.drawImage(src, 0, 0, big.width, big.height);
+
+    // Worker API: modo "texto disperso" (SPARSE_TEXT = 11) para etiquetas sueltas en mapa
+    const worker = await Tesseract.createWorker('eng', 1, {
+      logger: m => {
+        if (m.status === 'recognizing text') toast('OCR: ' + Math.round(m.progress * 100) + '%');
+      }
+    });
+    await worker.setParameters({
+      tessedit_pageseg_mode: '11',
+      preserve_interword_spaces: '1'
+    });
+    const result = await worker.recognize(big);
+    await worker.terminate();
+
+    // Coordenadas divididas por SCALE para volver al sistema del plano original.
+    // Guardamos la caja completa (x0,y0,x1,y1) para poder resaltar la etiqueta entera.
+    state.pdfTexts = (result.data.words || [])
+      .filter(w => w.confidence > 15 && w.text && w.text.trim().length >= 2)
+      .map(w => ({
+        text: w.text.trim().replace(/[^A-Za-z0-9\-_]/g, ''),
+        x: Math.round(w.bbox.x0 / SCALE),
+        y: Math.round(w.bbox.y0 / SCALE),
+        x0: w.bbox.x0 / SCALE, y0: w.bbox.y0 / SCALE,
+        x1: w.bbox.x1 / SCALE, y1: w.bbox.y1 / SCALE
+      }))
+      .filter(w => w.text.length >= 2);
+
+    const arqs = state.pdfTexts.filter(t => /ARQ/i.test(t.text)).length;
+    const crs  = state.pdfTexts.filter(t => /^CR/i.test(t.text)).length;
+    const emp  = state.pdfTexts.filter(t => /^0[1-9]E/i.test(t.text)).length;
+    const ctos = state.pdfTexts.filter(t => /^\d{6}$/.test(t.text)).length;
+    const post = state.pdfTexts.filter(t => /^L\d{4,}/i.test(t.text)).length;
+
+    if (state.pdfTexts.length === 0) {
+      alert('El OCR no reconoció texto.\n\nEsto pasa con planos de baja resolución o texto muy pequeño. Prueba a:\n• Cargar el PDF en vez de una captura\n• Marcar los elementos manualmente');
+    } else {
+      alert(`✓ OCR completado: ${state.pdfTexts.length} palabras detectadas\n\nARQ: ${arqs}\nCR: ${crs}\nEmpalmes (0xE): ${emp}\nCTO (6 díg): ${ctos}\nPostes (L): ${post}\n\nAhora pulsa los botones de color para marcarlos.`);
+    }
+    toast(`✓ OCR: ${state.pdfTexts.length} palabras`);
+  } catch(e) {
+    toast('Error OCR: ' + e.message);
+    console.error(e);
+  } finally {
+    _ocrCargando = false;
+  }
+}
+window.ejecutarOCR = ejecutarOCR;
+
+// ============================================================
+// RENDER
+// ============================================================
+function svgEl(tag, attrs = {}) {
+  const el = document.createElementNS('http://www.w3.org/2000/svg', tag);
+  for (const k in attrs) el.setAttribute(k, attrs[k]);
+  return el;
+}
+// ¿Es un color oscuro? (para decidir texto blanco o negro encima)
+function isColorDark(hex) {
+  if (!hex) return false;
+  const h = hex.replace('#', '');
+  const r = parseInt(h.substr(0,2),16), g = parseInt(h.substr(2,2),16), b = parseInt(h.substr(4,2),16);
+  // Luminancia percibida
+  return (0.299*r + 0.587*g + 0.114*b) < 140;
+}
+// Detecta el color del cable según el número inicial del texto (ej "12FO COMEL" → 12KP → azul)
+function colorCablePorTexto(texto) {
+  const m = (texto || '').match(/^(\d+)/);
+  if (!m) return null;
+  const num = m[1];
+  const ct = CABLE_TYPES.find(c => c.id.startsWith(num));
+  return ct ? ct.color : null;
+}
+function redraw() {
+  const svg = document.getElementById('overlay');
+  svg.innerHTML = '';
+  svg.setAttribute('width', state.bgWidth);
+  svg.setAttribute('height', state.bgHeight);
+  svg.setAttribute('viewBox', `0 0 ${state.bgWidth} ${state.bgHeight}`);
+  const highlights = state.elements.filter(e => e.type === 'highlight');
+  const others = state.elements.filter(e => e.type !== 'highlight');
+  highlights.forEach(el => renderElement(svg, el));
+  others.forEach(el => renderElement(svg, el));
+  if (state.pendingPath && state.pendingPath.points.length > 0) {
+    const pts = state.pendingPath.points.map(p => `${p.x},${p.y}`).join(' ');
+    svg.appendChild(svgEl('polyline', { points: pts, stroke: state.pendingPath.color, 'stroke-width': '6', 'stroke-opacity': '0.75', fill: 'none', 'stroke-linecap': 'round', 'stroke-linejoin': 'round' }));
+    state.pendingPath.points.forEach(p => svg.appendChild(svgEl('circle', { cx: p.x, cy: p.y, r: 5, fill: state.pendingPath.color, stroke: 'white', 'stroke-width': 1.5 })));
+  }
+  updateCalc();
+  updateActiveCableUI();
+}
+function renderElement(svg, el) {
+  const isSel = el.id === state.selectedId;
+  const isActive = el.type === 'cable' && el.id === state.activeCableId;
+  const sel = isSel ? ' selected' : (isActive ? ' active-cable' : '');
+  const id = el.id;
+  if (el.type === 'cable') {
+    const pts = el.points.map(p => `${p.x},${p.y}`).join(' ');
+    svg.appendChild(svgEl('polyline', { points: pts, stroke: el.color, 'stroke-width': '8', 'stroke-opacity': '0.85', fill: 'none', 'stroke-linecap': 'round', 'stroke-linejoin': 'round', class: 'marker' + sel, 'data-elem-id': id }));
+  } else if (el.type === 'elem') {
+    const g = svgEl('g', { class: 'marker' + sel, 'data-elem-id': id });
+    if (el.elemType === 'CR') {
+      g.appendChild(svgEl('rect', { x: el.x - 10, y: el.y - 10, width: 20, height: 20, fill: 'none', stroke: '#000', 'stroke-width': 2, 'data-elem-id': id }));
+      g.appendChild(svgEl('circle', { cx: el.x, cy: el.y, r: 5, fill: '#000', 'data-elem-id': id }));
+    } else if (el.elemType === 'ARQ') {
+      g.appendChild(svgEl('rect', { x: el.x - 8, y: el.y - 8, width: 16, height: 16, fill: '#fff', stroke: '#000', 'stroke-width': 2, 'data-elem-id': id }));
+    } else if (el.elemType === 'POSTE') {
+      g.appendChild(svgEl('circle', { cx: el.x, cy: el.y, r: 7, fill: '#8B4513', stroke: '#000', 'stroke-width': 1.5, 'data-elem-id': id }));
+    } else if (el.elemType === 'CTO') {
+      g.appendChild(svgEl('polygon', { points: `${el.x},${el.y-10} ${el.x-9},${el.y+7} ${el.x+9},${el.y+7}`, fill: '#facc15', stroke: '#000', 'stroke-width': 1.5, 'data-elem-id': id }));
+    }
+    if (el.label) {
+      const txt = svgEl('text', { x: el.x + 14, y: el.y + 4, 'font-size': '13', 'font-family': 'Arial, sans-serif', 'font-weight': '600', fill: '#000', 'data-elem-id': id });
+      txt.textContent = el.label;
+      g.appendChild(txt);
+    }
+    svg.appendChild(g);
+  } else if (el.type === 'tramo') {
+    const g = svgEl('g', { class: 'marker' + sel, 'data-elem-id': id });
+    const text = `${el.meters || 0}${el.letra || ''}`;
+    const fs = el.fontSize || 16;
+    const w = text.length * fs * 0.65 + 8;
+    g.appendChild(svgEl('rect', { x: el.x - w/2, y: el.y - fs*0.8, width: w, height: fs*1.4, fill: 'transparent', 'data-elem-id': id }));
+    const txt = svgEl('text', { x: el.x, y: el.y + fs*0.35, 'font-size': fs, 'font-family': 'Arial, sans-serif', 'font-weight': '700', fill: '#000', 'text-anchor': 'middle', 'data-elem-id': id });
+    txt.textContent = text;
+    g.appendChild(txt);
+    svg.appendChild(g);
+  } else if (el.type === 'valona') {
+    const g = svgEl('g', { class: 'marker' + sel, 'data-elem-id': id });
+    // Anillo exterior con el color del cable asignado
+    const cableColor = (() => { const c = state.elements.find(e => e.id === el.cableId); return c ? c.color : null; })();
+    if (cableColor) {
+      g.appendChild(svgEl('circle', { cx: el.x, cy: el.y, r: 18, fill: 'none', stroke: cableColor, 'stroke-width': 3.5, 'stroke-opacity': '0.85', 'data-elem-id': id }));
+    }
+    g.appendChild(svgEl('circle', { cx: el.x, cy: el.y, r: 14, fill: '#fb923c', stroke: '#000', 'stroke-width': 1.5, 'data-elem-id': id }));
+    const txt = svgEl('text', { x: el.x, y: el.y + 5, 'font-size': '13', 'font-family': 'Arial, sans-serif', 'font-weight': 'bold', fill: '#000', 'text-anchor': 'middle', 'data-elem-id': id });
+    txt.textContent = el.meters || '';
+    g.appendChild(txt);
+    svg.appendChild(g);
+  } else if (el.type === 'highlight') {
+    svg.appendChild(svgEl('rect', { x: Math.min(el.x1, el.x2), y: Math.min(el.y1, el.y2), width: Math.abs(el.x2 - el.x1), height: Math.abs(el.y2 - el.y1), fill: el.color || '#fef08a', style: 'mix-blend-mode: multiply', class: 'marker' + sel, 'data-elem-id': id }));
+  } else if (el.type === 'text') {
+    const g = svgEl('g', { class: 'marker' + sel, 'data-elem-id': id });
+    const lines = (el.text || '').split('\n');
+    const fs = el.fontSize || settings.defaultTextSize;
+    const lineH = fs * 1.25;
+    const maxLen = Math.max(...lines.map(l => l.length), 1);
+    // Tamaño de caja: manual (boxW/boxH) si el usuario la ha estirado, si no automático
+    const w = el.boxW || (maxLen * fs * 0.6 + 10);
+    const h = el.boxH || (lines.length * lineH + 6);
+    const bx = el.x - 4, by = el.y - fs;
+    // Color de texto: blanco si el fondo sólido es oscuro
+    let textColor = '#000';
+    let tieneFondo = false;
+    if (el.bgSolid) {
+      // Fondo sólido opaco (color de cable): cubre toda la casilla
+      g.appendChild(svgEl('rect', { x: bx, y: by, width: w, height: h, fill: el.bgSolid, 'data-elem-id': id }));
+      textColor = isColorDark(el.bgSolid) ? '#fff' : '#000';
+      tieneFondo = true;
+    } else if (el.bgHighlight) {
+      // Resaltado tipo rotulador (amarillo/naranja, blend multiply)
+      g.appendChild(svgEl('rect', { x: bx, y: by, width: w, height: h, fill: el.bgHighlight, style: 'mix-blend-mode: multiply', 'data-elem-id': id }));
+      tieneFondo = true;
+    }
+    if (el.background && !el.bgSolid) {
+      g.appendChild(svgEl('rect', { x: bx, y: by, width: w, height: h, fill: 'white', stroke: '#000', 'stroke-width': 1, rx: 3, 'data-elem-id': id }));
+      tieneFondo = true;
+    } else if (!el.bgHighlight && !el.bgSolid) {
+      g.appendChild(svgEl('rect', { x: bx, y: by, width: w, height: h, fill: 'transparent', 'data-elem-id': id }));
+    }
+    lines.forEach((ln, i) => {
+      const t = svgEl('text', { x: el.x, y: el.y + i * lineH, 'font-size': fs, 'font-family': 'Arial, sans-serif', 'font-weight': el.bold ? '700' : '500', fill: textColor, 'data-elem-id': id });
+      const m = ln.match(/^(✱\d+)(.*)$/);
+      if (el._esListaNotas && m) {
+        // En la lista de notas: el ✱N va en rojo, el resto en negro
+        const ts1 = svgEl('tspan', { fill: '#dc2626', 'font-weight': '800', 'data-elem-id': id }); ts1.textContent = m[1];
+        const ts2 = svgEl('tspan', { fill: '#000', 'data-elem-id': id }); ts2.textContent = m[2];
+        t.appendChild(ts1); t.appendChild(ts2);
+      } else {
+        t.textContent = ln;
+      }
+      g.appendChild(t);
+    });
+    // Selección: borde discontinuo + tiradores para redimensionar el fondo
+    if (isSel && tieneFondo) {
+      // Borde de selección para que se vea que es redimensionable
+      g.appendChild(svgEl('rect', { x: bx, y: by, width: w, height: h, fill: 'none', stroke: '#2563eb', 'stroke-width': 1.5, 'stroke-dasharray': '5 3', 'pointer-events': 'none' }));
+      const hs = 16; // tirador grande, fácil de tocar
+      const mk = (cx, cy, dir, cursor) => {
+        g.appendChild(svgEl('rect', { x: cx - hs/2, y: cy - hs/2, width: hs, height: hs, rx: 3, fill: '#2563eb', stroke: '#fff', 'stroke-width': 2, 'data-resize-id': id, 'data-resize-dir': dir, style: 'cursor:' + cursor }));
+      };
+      mk(bx + w,       by + h,       'both', 'nwse-resize'); // esquina: largo y alto
+      mk(bx + w,       by + h/2,     'x',    'ew-resize');   // derecha: solo largo
+      mk(bx + w/2,     by + h,       'y',    'ns-resize');   // abajo: solo alto
+    }
+    svg.appendChild(g);
+  } else if (el.type === 'xmark') {
+    const g = svgEl('g', { class: 'marker' + sel, 'data-elem-id': id });
+    const s = 14;
+    g.appendChild(svgEl('line', { x1: el.x - s, y1: el.y - s, x2: el.x + s, y2: el.y + s, stroke: '#dc2626', 'stroke-width': 4, 'data-elem-id': id }));
+    g.appendChild(svgEl('line', { x1: el.x - s, y1: el.y + s, x2: el.x + s, y2: el.y - s, stroke: '#dc2626', 'stroke-width': 4, 'data-elem-id': id }));
+    svg.appendChild(g);
+  } else if (el.type === 'nota') {
+    const g = svgEl('g', { class: 'marker' + sel, 'data-elem-id': id });
+    // Círculo blanco de contraste para que destaque sobre cualquier fondo
+    g.appendChild(svgEl('circle', { cx: el.x, cy: el.y, r: 15, fill: '#fff', stroke: '#dc2626', 'stroke-width': 2.5, 'data-elem-id': id }));
+    // Asterisco rojo grande
+    const ast = svgEl('text', { x: el.x, y: el.y + 8, 'font-size': 26, 'font-family': 'Arial, sans-serif', 'font-weight': '900', fill: '#dc2626', 'text-anchor': 'middle', 'data-elem-id': id });
+    ast.textContent = '✱';
+    g.appendChild(ast);
+    // Número en globo amarillo arriba a la derecha
+    g.appendChild(svgEl('circle', { cx: el.x + 13, cy: el.y - 11, r: 8, fill: '#fde047', stroke: '#000', 'stroke-width': 1, 'data-elem-id': id }));
+    const num = svgEl('text', { x: el.x + 13, y: el.y - 7, 'font-size': 11, 'font-family': 'Arial, sans-serif', 'font-weight': '800', fill: '#000', 'text-anchor': 'middle', 'data-elem-id': id });
+    num.textContent = el.num || '';
+    g.appendChild(num);
+    svg.appendChild(g);
+  }
+}
+
+// ============================================================
+// HELPERS
+// ============================================================
+function getStagePoint(clientX, clientY) {
+  const r = document.getElementById('stage').getBoundingClientRect();
+  return { x: (clientX - r.left - state.panX) / state.scale, y: (clientY - r.top - state.panY) / state.scale };
+}
+function newId() { return 'e' + Date.now() + Math.floor(Math.random() * 1000); }
+function pushHistory() {
+  state.history.push(JSON.stringify({ els: state.elements, activeId: state.activeCableId }));
+  if (state.history.length > 100) state.history.shift();
+}
+function undo() {
+  if (state.pendingPath && state.pendingPath.points.length > 0) {
+    state.pendingPath.points.pop();
+    if (state.pendingPath.points.length === 0) state.pendingPath = null;
+    redraw();
+    return;
+  }
+  if (state.history.length === 0) { toast('Nada que deshacer'); return; }
+  const prev = JSON.parse(state.history.pop());
+  state.elements = prev.els;
+  state.activeCableId = prev.activeId;
+  state.selectedId = null;
+  redraw();
+}
+function finishPath() {
+  if (state.pendingPath && state.pendingPath.points.length >= 2) {
+    pushHistory();
+    const c = { id: newId(), type: 'cable', cableType: state.pendingPath.cableType, color: state.pendingPath.color, points: state.pendingPath.points };
+    state.elements.push(c);
+    state.activeCableId = c.id;
+  }
+  state.pendingPath = null;
+}
+
+// Distancia de punto a segmento
+function distToSegment(px, py, ax, ay, bx, by) {
+  const dx = bx - ax, dy = by - ay;
+  const lenSq = dx*dx + dy*dy;
+  if (lenSq === 0) return Math.hypot(px - ax, py - ay);
+  const t = Math.max(0, Math.min(1, ((px-ax)*dx + (py-ay)*dy) / lenSq));
+  return Math.hypot(px - (ax + t*dx), py - (ay + t*dy));
+}
+
+// Encuentra el cable más cercano a un punto (para auto-asignar valonas/tramos)
+function findNearestCable(x, y, maxDist = 120) {
+  let best = null, bestDist = maxDist;
+  state.elements.forEach(el => {
+    if (el.type !== 'cable' || !el.points || el.points.length < 2) return;
+    for (let i = 0; i < el.points.length - 1; i++) {
+      const d = distToSegment(x, y, el.points[i].x, el.points[i].y, el.points[i+1].x, el.points[i+1].y);
+      if (d < bestDist) { bestDist = d; best = el; }
+    }
+  });
+  return best;
+}
+
+// Find elements within radius of a stage point
+function findElementsNear(x, y, radius = 22) {
+  return state.elements.filter(el => {
+    if (el.x !== undefined && el.y !== undefined) return Math.hypot(el.x - x, el.y - y) < radius;
+    if (el.type === 'cable') return el.points.some(p => Math.hypot(p.x - x, p.y - y) < radius);
+    if (el.type === 'highlight') {
+      const minx = Math.min(el.x1, el.x2), maxx = Math.max(el.x1, el.x2);
+      const miny = Math.min(el.y1, el.y2), maxy = Math.max(el.y1, el.y2);
+      return x >= minx - 5 && x <= maxx + 5 && y >= miny - 5 && y <= maxy + 5;
+    }
+    return false;
+  });
+}
+
+function describeElement(el) {
+  if (el.type === 'cable') return `Cable ${el.cableType}`;
+  if (el.type === 'elem') return `${el.elemType}${el.label ? ' ' + el.label : ''}`;
+  if (el.type === 'tramo') return `Tramo ${el.meters || 0}${el.letra || ''}`;
+  if (el.type === 'valona') return `Valona ${el.meters} m`;
+  if (el.type === 'highlight') return `Resaltado`;
+  if (el.type === 'text') return `Texto "${(el.text || '').slice(0, 20)}"`;
+  if (el.type === 'xmark') return `Marca X`;
+  if (el.type === 'nota') return `Nota ✱${el.num}`;
+  return el.type;
+}
+
+// Siguiente número de nota/asterisco disponible
+function nextNotaNum() {
+  const nums = state.elements.filter(e => e.type === 'nota').map(e => e.num || 0);
+  return (nums.length ? Math.max(...nums) : 0) + 1;
+}
+
+// Inserta (o actualiza) un bloque de texto que recopila todas las notas
+function insertarListaNotas() {
+  const notas = state.elements.filter(e => e.type === 'nota').sort((a,b) => (a.num||0)-(b.num||0));
+  if (notas.length === 0) { toast('Coloca primero algún asterisco (✱) en el mapa'); return; }
+  const lineas = ['NOTAS:'].concat(notas.map(n => `✱${n.num}  ${n.text || '(sin texto)'}`));
+  const texto = lineas.join('\n');
+  pushHistory();
+  // Si ya existe un bloque de notas, lo actualizamos; si no, lo creamos
+  let bloque = state.elements.find(e => e.type === 'text' && e._esListaNotas);
+  if (bloque) {
+    bloque.text = texto;
+  } else {
+    // Colocar en una esquina visible del plano
+    bloque = { id: newId(), type: 'text', x: 30, y: state.bgHeight - 30 - notas.length*16,
+      text: texto, background: true, fontSize: 13, bold: false, _esListaNotas: true };
+    state.elements.push(bloque);
+    state.selectedId = bloque.id;
+  }
+  redraw();
+  toast(`✓ Lista de ${notas.length} nota(s) ${bloque ? 'actualizada' : 'creada'}`);
+}
+window.insertarListaNotas = insertarListaNotas;
+
+// Get a representative (x,y) for any element type
+function getElementCenter(el) {
+  if (el.x !== undefined && el.y !== undefined) return { x: el.x, y: el.y };
+  if (el.type === 'highlight') {
+    return { x: (el.x1 + el.x2) / 2, y: (el.y1 + el.y2) / 2 };
+  }
+  if (el.type === 'cable' && el.points && el.points.length > 0) {
+    return el.points[Math.floor(el.points.length / 2)];
+  }
+  return null;
+}
+
+// ============================================================
+// POINTER HANDLING
+// ============================================================
+function getEventCoords(evt) {
+  if (evt.touches && evt.touches.length > 0) return { x: evt.touches[0].clientX, y: evt.touches[0].clientY };
+  if (evt.changedTouches && evt.changedTouches.length > 0) return { x: evt.changedTouches[0].clientX, y: evt.changedTouches[0].clientY };
+  return { x: evt.clientX, y: evt.clientY };
+}
+
+function clearLongPress() {
+  if (longPressTimer) { clearTimeout(longPressTimer); longPressTimer = null; }
+}
+
+function onPointerDown(evt) {
+  if (!state.bgLoaded) return;
+  if (evt.target.closest('.topbar, .toolbar, .panel, .drawer, .elem-popup, .stack-picker, .pan-hint, .active-cable-bar')) return;
+
+  closeStackPicker();
+  const coords = getEventCoords(evt);
+  const sp = getStagePoint(coords.x, coords.y);
+
+  // ¿Pulsa el tirador de redimensión de una caja de texto?
+  const resizeTarget = evt.target.closest('[data-resize-id]');
+  if (resizeTarget) {
+    const rid = resizeTarget.getAttribute('data-resize-id');
+    const rel = state.elements.find(e => e.id === rid);
+    if (rel) {
+      const lines = (rel.text || '').split('\n');
+      const fs = rel.fontSize || settings.defaultTextSize;
+      const maxLen = Math.max(...lines.map(l => l.length), 1);
+      pushHistory();
+      dragState = {
+        type: 'box-resize', resizeEl: rel,
+        resizeDir: resizeTarget.getAttribute('data-resize-dir') || 'both',
+        startStageX: sp.x, startStageY: sp.y,
+        boxW0: rel.boxW || (maxLen * fs * 0.6 + 10),
+        boxH0: rel.boxH || (lines.length * fs * 1.25 + 6),
+        startClientX: coords.x, startClientY: coords.y, moved: false
+      };
+      evt.preventDefault();
+      return;
+    }
+  }
+
+  const elemTarget = evt.target.closest('[data-elem-id]');
+  const elemId = elemTarget?.getAttribute('data-elem-id');
+  const hitEl = elemId ? state.elements.find(e => e.id === elemId) : null;
+
+  dragState = {
+    type: 'pending',
+    startClientX: coords.x, startClientY: coords.y,
+    startStageX: sp.x, startStageY: sp.y,
+    moved: false, button: evt.button || 0,
+    hitEl,
+  };
+
+  // Right/middle click or space = explicit pan
+  if (evt.button === 1 || evt.button === 2 || spaceDown) {
+    dragState.type = 'pan';
+    dragState.panX0 = state.panX;
+    dragState.panY0 = state.panY;
+    document.getElementById('stage').classList.add('panning');
+    evt.preventDefault();
+    return;
+  }
+
+  // PLACEMENT TOOLS: create element immediately and put in move mode
+  const placementTools = ['elem', 'tramo', 'valona-cr', 'valona-arq', 'text', 'xmark', 'nota'];
+  if (placementTools.includes(state.tool)) {
+    // Si pulsas sobre el elemento recién colocado (seleccionado), MUÉVELO en vez de crear otro
+    if (hitEl && hitEl.id === state.selectedId && hitEl.x !== undefined) {
+      dragState.type = 'placement-move';
+      dragState.placedEl = hitEl;
+      dragState.elX0 = hitEl.x;
+      dragState.elY0 = hitEl.y;
+      pushHistory();
+      return;
+    }
+    const newEl = createElementAt(sp.x, sp.y);
+    if (newEl) {
+      pushHistory();
+      state.elements.push(newEl);
+      state.selectedId = newEl.id;
+      dragState.type = 'placement-move';
+      dragState.placedEl = newEl;
+      dragState.elX0 = newEl.x;
+      dragState.elY0 = newEl.y;
+      redraw();
+    }
+    return;
+  }
+
+  // LONG PRESS on existing element: schedule delete
+  if (hitEl && !state.tool) {
+    longPressTimer = setTimeout(() => {
+      if (dragState && !dragState.moved && dragState.hitEl === hitEl) {
+        pushHistory();
+        state.elements = state.elements.filter(e => e.id !== hitEl.id);
+        if (state.activeCableId === hitEl.id) state.activeCableId = null;
+        dragState = null;
+        redraw();
+        toast('Borrado · ↶ para deshacer');
+        if (navigator.vibrate) navigator.vibrate(30);
+      }
+    }, LONG_PRESS_MS);
+  }
+}
+
+function createElementAt(x, y) {
+  const td = state.toolData;
+  if (state.tool === 'elem') {
+    return { id: newId(), type: 'elem', elemType: td.elemType, x, y, label: '', cableId: state.activeCableId };
+  }
+  if (state.tool === 'tramo') {
+    const letra = td.letra !== undefined ? td.letra : settings.defaultLetra;
+    const lt = TRAMO_LETRAS.find(t => t.letra === letra) || TRAMO_LETRAS[0];
+    const nc = findNearestCable(x, y) || getActiveCable();
+    return { id: newId(), type: 'tramo', letra, sumaMalla: lt.sumaMalla, x, y, meters: 0, cableId: nc ? nc.id : null };
+  }
+  if (state.tool === 'valona-cr') {
+    const nc = findNearestCable(x, y) || getActiveCable();
+    return { id: newId(), type: 'valona', x, y, meters: 20, cableId: nc ? nc.id : null };
+  }
+  if (state.tool === 'valona-arq') {
+    const nc = findNearestCable(x, y) || getActiveCable();
+    return { id: newId(), type: 'valona', x, y, meters: 10, cableId: nc ? nc.id : null };
+  }
+  if (state.tool === 'text') return { id: newId(), type: 'text', x, y, text: '', background: false, fontSize: settings.defaultTextSize, bold: false };
+  if (state.tool === 'xmark') return { id: newId(), type: 'xmark', x, y };
+  if (state.tool === 'nota') return { id: newId(), type: 'nota', x, y, num: nextNotaNum(), text: '' };
+  return null;
+}
+
+function onPointerMove(evt) {
+  if (!dragState) return;
+  const coords = getEventCoords(evt);
+  const dx = coords.x - dragState.startClientX;
+  const dy = coords.y - dragState.startClientY;
+  if (Math.abs(dx) > DRAG_THRESHOLD || Math.abs(dy) > DRAG_THRESHOLD) {
+    dragState.moved = true;
+    clearLongPress();
+  }
+
+  // BOX-RESIZE: estirar la caja de fondo del texto
+  if (dragState.type === 'box-resize') {
+    const sp = getStagePoint(coords.x, coords.y);
+    const dir = dragState.resizeDir || 'both';
+    if (dir === 'both' || dir === 'x') dragState.resizeEl.boxW = Math.max(16, dragState.boxW0 + (sp.x - dragState.startStageX));
+    if (dir === 'both' || dir === 'y') dragState.resizeEl.boxH = Math.max(12, dragState.boxH0 + (sp.y - dragState.startStageY));
+    redraw();
+    evt.preventDefault();
+    return;
+  }
+
+  // PLACEMENT-MOVE: drag the just-placed element
+  if (dragState.type === 'placement-move') {
+    const sp = getStagePoint(coords.x, coords.y);
+    dragState.placedEl.x = dragState.elX0 + (sp.x - dragState.startStageX);
+    dragState.placedEl.y = dragState.elY0 + (sp.y - dragState.startStageY);
+    redraw();
+    evt.preventDefault();
+    return;
+  }
+
+  // Resolve pending into concrete action
+  if (dragState.type === 'pending' && dragState.moved) {
+    const isHlTool = state.tool === 'hl-yellow' || state.tool === 'hl-orange' || state.tool === 'hl-cable';
+    if (isHlTool) dragState.type = 'highlight';
+    else if (dragState.hitEl && dragState.hitEl.x !== undefined && !state.tool) {
+      dragState.type = 'elem-move';
+      dragState.elX0 = dragState.hitEl.x;
+      dragState.elY0 = dragState.hitEl.y;
+      pushHistory();
+    } else if (!state.tool) {
+      dragState.type = 'pan';
+      dragState.panX0 = state.panX;
+      dragState.panY0 = state.panY;
+      document.getElementById('stage').classList.add('panning');
+    } else return;
+  }
+
+  if (dragState.type === 'pan') {
+    state.panX = dragState.panX0 + dx;
+    state.panY = dragState.panY0 + dy;
+    applyTransform();
+    evt.preventDefault();
+  } else if (dragState.type === 'elem-move') {
+    const sp = getStagePoint(coords.x, coords.y);
+    dragState.hitEl.x = dragState.elX0 + (sp.x - dragState.startStageX);
+    dragState.hitEl.y = dragState.elY0 + (sp.y - dragState.startStageY);
+    redraw();
+    evt.preventDefault();
+  } else if (dragState.type === 'highlight') {
+    if (!dragState.hlEl) {
+      pushHistory();
+      dragState.hlEl = { id: newId(), type: 'highlight', color: state.toolData.color, x1: dragState.startStageX, y1: dragState.startStageY, x2: dragState.startStageX, y2: dragState.startStageY };
+      state.elements.push(dragState.hlEl);
+    }
+    const sp = getStagePoint(coords.x, coords.y);
+    dragState.hlEl.x2 = sp.x;
+    dragState.hlEl.y2 = sp.y;
+    redraw();
+    evt.preventDefault();
+  }
+}
+
+function onPointerUp(evt) {
+  clearLongPress();
+  if (!dragState) return;
+  document.getElementById('stage').classList.remove('panning');
+
+  if (dragState.type === 'placement-move') {
+    const el = dragState.placedEl;
+    // Open popup only for elements that need configuration (tramo, text, elem, nota)
+    if (el.type === 'tramo' || el.type === 'text' || el.type === 'elem' || el.type === 'nota') {
+      openElemPopup(el, evt);
+    }
+    dragState = null;
+    return;
+  }
+
+  if (dragState.type === 'highlight' && dragState.hlEl) {
+    const el = dragState.hlEl;
+    if (Math.abs(el.x2 - el.x1) < 5 && Math.abs(el.y2 - el.y1) < 5) {
+      state.elements = state.elements.filter(x => x.id !== el.id);
+      redraw();
+    }
+    dragState = null;
+    return;
+  }
+  if (dragState.type === 'pan' || dragState.type === 'elem-move' || dragState.type === 'box-resize') {
+    dragState = null;
+    return;
+  }
+
+  // Click (no movement)
+  if (dragState.type === 'pending' && !dragState.moved) {
+    if (state.tool === 'cable') {
+      handleCableClick(dragState.startStageX, dragState.startStageY);
+    } else if (!state.tool) {
+      // No tool: handle element selection
+      const near = findElementsNear(dragState.startStageX, dragState.startStageY);
+      if (near.length === 0) {
+        state.selectedId = null;
+        redraw();
+      } else if (near.length === 1) {
+        const el = near[0];
+        if (el.type === 'cable') {
+          setActiveCable(el);
+          toast('Activo: ' + el.cableType);
+        } else {
+          openElemPopup(el, evt);
+        }
+      } else {
+        // Multiple elements: show stack picker
+        showStackPicker(near, evt);
+      }
+    }
+  }
+  dragState = null;
+}
+
+function handleCableClick(x, y) {
+  if (!state.pendingPath) {
+    state.pendingPath = { cableType: state.toolData.cableType, color: state.toolData.color, points: [{ x, y }] };
+  } else if (state.pendingPath.cableType === state.toolData.cableType) {
+    state.pendingPath.points.push({ x, y });
+  } else {
+    finishPath();
+    state.pendingPath = { cableType: state.toolData.cableType, color: state.toolData.color, points: [{ x, y }] };
+  }
+  redraw();
+}
+
+// ============================================================
+// STACK PICKER (multiple elements at same point)
+// ============================================================
+function showStackPicker(elements, evt) {
+  const picker = document.getElementById('stackPicker');
+  const list = document.getElementById('stackList');
+  list.innerHTML = '';
+  elements.forEach(el => {
+    const item = document.createElement('div');
+    item.className = 'item';
+    item.innerHTML = `<span>${describeElement(el)}</span><span class="x" title="Borrar">✕</span>`;
+    item.querySelector('span').onclick = () => {
+      closeStackPicker();
+      if (el.type === 'cable') { setActiveCable(el); toast('Activo: ' + el.cableType); }
+      else openElemPopup(el, evt);
+    };
+    item.querySelector('.x').onclick = (e) => {
+      e.stopPropagation();
+      pushHistory();
+      state.elements = state.elements.filter(x => x.id !== el.id);
+      if (state.activeCableId === el.id) state.activeCableId = null;
+      redraw();
+      // Refresh picker
+      const remaining = findElementsNear(...lastStackPoint, 22);
+      if (remaining.length > 0) showStackPicker(remaining, evt);
+      else closeStackPicker();
+    };
+    list.appendChild(item);
+  });
+  const stage = document.getElementById('stage');
+  const rect = stage.getBoundingClientRect();
+  const coords = getEventCoords(evt);
+  let px = coords.x - rect.left;
+  let py = coords.y - rect.top;
+  picker.style.left = Math.min(Math.max(10, px), window.innerWidth - 220) + 'px';
+  picker.style.top = Math.min(Math.max(50, py), window.innerHeight - 200) + 'px';
+  picker.classList.add('open');
+  // Save the point for stack-refresh after deletes
+  lastStackPoint = [findElementsNear._lastX || 0, findElementsNear._lastY || 0];
+}
+let lastStackPoint = [0, 0];
+function closeStackPicker() { document.getElementById('stackPicker').classList.remove('open'); }
+
+// ============================================================
+// POPUP
+// ============================================================
+function fillCableSelect(currentId) {
+  const sel = document.getElementById('popupCable');
+  sel.innerHTML = '<option value="">(sin asignar)</option>';
+  state.elements.filter(e => e.type === 'cable').forEach(c => {
+    const o = document.createElement('option');
+    o.value = c.id; o.textContent = c.cableType;
+    sel.appendChild(o);
+  });
+  sel.value = currentId || '';
+}
+
+function openElemPopup(el, evt) {
+  state.selectedId = el.id;
+  popupElement = el;
+  const popup = document.getElementById('elemPopup');
+  const labelWrap = document.getElementById('popupLabelWrap');
+  const labelInput = document.getElementById('popupLabel');
+  const labelLabel = document.getElementById('popupLabelLabel');
+  const metersWrap = document.getElementById('popupMetersWrap');
+  const metersInput = document.getElementById('popupMeters');
+  const metersLabel = document.getElementById('popupMetersLabel');
+  const bgWrap = document.getElementById('popupBgWrap');
+  const bgCheck = document.getElementById('popupBg');
+  const sizeWrap = document.getElementById('popupSizeWrap');
+  const sizeInput = document.getElementById('popupSize');
+  const boldWrap = document.getElementById('popupBoldWrap');
+  const boldCheck = document.getElementById('popupBold');
+  const cableWrap = document.getElementById('popupCableWrap');
+
+  labelWrap.style.display = 'block';
+  metersWrap.style.display = 'none';
+  bgWrap.style.display = 'none';
+  sizeWrap.style.display = 'none';
+  boldWrap.style.display = 'none';
+  cableWrap.style.display = 'none';
+  document.getElementById('popupBgColorWrap').style.display = 'none';
+  labelInput.readOnly = false;
+  labelInput.style.textTransform = 'none';
+
+  if (el.type === 'elem') {
+    labelLabel.textContent = 'Etiqueta / ID';
+    labelInput.placeholder = 'Ej: ARQ D 15, CR gBR 14';
+    labelInput.value = el.label || '';
+    cableWrap.style.display = 'block';
+    fillCableSelect(el.cableId);
+  } else if (el.type === 'tramo') {
+    metersWrap.style.display = 'block';
+    metersLabel.textContent = 'Metros';
+    metersInput.value = el.meters || 0;
+    labelLabel.textContent = 'Letra';
+    labelInput.placeholder = 'A, B, F, C, X, D';
+    labelInput.value = el.letra || '';
+    labelInput.style.textTransform = 'uppercase';
+    sizeWrap.style.display = 'block';
+    sizeInput.value = el.fontSize || 16;
+    cableWrap.style.display = 'block';
+    fillCableSelect(el.cableId);
+  } else if (el.type === 'valona') {
+    metersWrap.style.display = 'block';
+    metersLabel.textContent = 'Metros valona';
+    metersInput.value = el.meters || 0;
+    labelWrap.style.display = 'none';
+    cableWrap.style.display = 'block';
+    fillCableSelect(el.cableId);
+  } else if (el.type === 'text') {
+    labelLabel.textContent = 'Texto (| para nueva línea)';
+    labelInput.placeholder = 'Ej: Casa nº 5 · Tlf 666...';
+    labelInput.value = (el.text || '').replace(/\n/g, '|');
+    bgWrap.style.display = 'flex';
+    bgCheck.checked = el.background === true;
+    sizeWrap.style.display = 'block';
+    sizeInput.value = el.fontSize || settings.defaultTextSize;
+    boldWrap.style.display = 'flex';
+    boldCheck.checked = el.bold === true;
+    document.getElementById('popupBgColorWrap').style.display = 'block';
+    // Mark active highlight button
+    document.querySelectorAll('.bg-color-btn').forEach(b => {
+      b.style.outline = (!el.bgSolid && b.dataset.color === (el.bgHighlight || '')) ? '2px solid #2563eb' : 'none';
+    });
+    // Generar botones de color de cable (fondo sólido)
+    const ccWrap = document.getElementById('popupCableColors');
+    ccWrap.innerHTML = '';
+    CABLE_TYPES.forEach(ct => {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'bg-solid-btn';
+      btn.dataset.color = ct.color;
+      btn.textContent = ct.id;
+      const dark = isColorDark(ct.color);
+      btn.style.cssText = `padding:5px 8px;border-radius:4px;background:${ct.color};color:${dark?'#fff':'#000'};font-size:10px;font-weight:700;border:1px solid rgba(255,255,255,0.2);outline:${el.bgSolid===ct.color?'2px solid #fbbf24':'none'};`;
+      btn.onclick = () => {
+        popupElement.bgSolid = (popupElement.bgSolid === ct.color) ? null : ct.color;
+        if (popupElement.bgSolid) popupElement.bgHighlight = null;
+        ccWrap.querySelectorAll('.bg-solid-btn').forEach(x => x.style.outline = (x.dataset.color === (popupElement.bgSolid||'')) ? '2px solid #fbbf24' : 'none');
+        document.querySelectorAll('.bg-color-btn').forEach(x => x.style.outline = 'none');
+        redraw();
+      };
+      ccWrap.appendChild(btn);
+    });
+  } else if (el.type === 'nota') {
+    labelLabel.textContent = `Texto de la nota ✱${el.num}`;
+    labelInput.placeholder = 'Ej: Pendiente de canalización';
+    labelInput.value = el.text || '';
+  } else if (el.type === 'cable') {
+    labelLabel.textContent = 'Cable';
+    labelInput.value = el.cableType || '';
+    labelInput.readOnly = true;
+  } else {
+    labelInput.value = '';
+  }
+
+  const stage = document.getElementById('stage');
+  const rect = stage.getBoundingClientRect();
+  const coords = evt && evt.clientX ? evt : (evt && evt.changedTouches && evt.changedTouches[0]) || { clientX: rect.left + rect.width/2, clientY: rect.top + 100 };
+  let px = coords.clientX - rect.left;
+  let py = coords.clientY - rect.top;
+  // Mostrar primero para poder medir su altura real y que nunca quede cortado
+  popup.classList.add('open');
+  const pw = popup.offsetWidth || 260;
+  const ph = popup.offsetHeight || 280;
+  let left = px + 10;
+  if (left + pw > window.innerWidth - 10) left = Math.max(10, window.innerWidth - pw - 10);
+  let top = py + 20;
+  if (top + ph > window.innerHeight - 10) top = Math.max(10, window.innerHeight - ph - 10);
+  popup.style.left = Math.max(10, left) + 'px';
+  popup.style.top = top + 'px';
+  setTimeout(() => {
+    const target = metersWrap.style.display !== 'none' ? metersInput : labelInput;
+    target.focus(); target.select && target.select();
+  }, 50);
+  redraw();
+}
+
+function closePopup() { document.getElementById('elemPopup').classList.remove('open'); popupElement = null; }
+
+document.getElementById('popupOk').onclick = () => {
+  if (!popupElement) return;
+  const labelInput = document.getElementById('popupLabel');
+  const metersInput = document.getElementById('popupMeters');
+  const bgCheck = document.getElementById('popupBg');
+  const sizeInput = document.getElementById('popupSize');
+  const boldCheck = document.getElementById('popupBold');
+  const cableSel = document.getElementById('popupCable');
+  const val = labelInput.value;
+  const m = +metersInput.value || 0;
+  const fs = +sizeInput.value || 14;
+  if (popupElement.type === 'elem') { popupElement.label = val; popupElement.cableId = cableSel.value || null; }
+  else if (popupElement.type === 'tramo') {
+    popupElement.letra = val.toUpperCase(); popupElement.meters = m; popupElement.fontSize = fs;
+    const t = TRAMO_LETRAS.find(x => x.letra === popupElement.letra);
+    popupElement.sumaMalla = t ? t.sumaMalla : false;
+    popupElement.cableId = cableSel.value || null;
+  }
+  else if (popupElement.type === 'valona') { popupElement.meters = m; popupElement.cableId = cableSel.value || null; }
+  else if (popupElement.type === 'text') {
+    popupElement.text = val.replace(/\|/g, '\n');
+    popupElement.background = bgCheck.checked;
+    popupElement.fontSize = fs;
+    popupElement.bold = boldCheck.checked;
+  }
+  else if (popupElement.type === 'nota') { popupElement.text = val; }
+  closePopup();
+  redraw();
+};
+
+document.getElementById('popupDel').onclick = () => {
+  if (!popupElement) return;
+  pushHistory();
+  if (popupElement.type === 'cable') {
+    state.elements.forEach(e => { if (e.cableId === popupElement.id) e.cableId = null; });
+    if (state.activeCableId === popupElement.id) state.activeCableId = null;
+  }
+  state.elements = state.elements.filter(e => e.id !== popupElement.id);
+  closePopup();
+  redraw();
+};
+
+// Borrar cerca: deletes all elements within radius of this element's center
+document.getElementById('popupDelNear').onclick = () => {
+  if (!popupElement) return;
+  const center = getElementCenter(popupElement);
+  if (!center) { toast('No aplicable a este elemento'); return; }
+  const RADIUS = 40;
+  const toRemove = findElementsNear(center.x, center.y, RADIUS);
+  if (toRemove.length === 0) { toast('Nada que borrar cerca'); return; }
+  const names = toRemove.map(describeElement).join(', ');
+  if (!confirm(`¿Borrar ${toRemove.length} elemento(s) cerca?\n\n${names}`)) return;
+  pushHistory();
+  state.elements = state.elements.filter(e => !toRemove.includes(e));
+  toRemove.forEach(r => { if (state.activeCableId === r.id) state.activeCableId = null; });
+  closePopup();
+  redraw();
+  toast(`Borrados ${toRemove.length} elementos`);
+};
+
+document.getElementById('popupLabel').addEventListener('input', (e) => {
+  if (!popupElement) return;
+  if (popupElement.type === 'tramo') { e.target.value = e.target.value.toUpperCase(); return; }
+  // Auto-detección de color de cable al escribir texto (ej "12FO COMEL" → azul)
+  if (popupElement.type === 'text' && !popupElement._bgManual) {
+    const auto = colorCablePorTexto(e.target.value);
+    if (auto) {
+      popupElement.bgSolid = auto;
+      popupElement.bgHighlight = null;
+      const ccWrap = document.getElementById('popupCableColors');
+      ccWrap.querySelectorAll('.bg-solid-btn').forEach(x => x.style.outline = (x.dataset.color === auto) ? '2px solid #fbbf24' : 'none');
+      document.querySelectorAll('.bg-color-btn').forEach(x => x.style.outline = 'none');
+      redraw();
+    }
+  }
+});
+
+// Bg color buttons for text (resaltado rotulador)
+document.querySelectorAll('.bg-color-btn').forEach(b => {
+  b.addEventListener('click', () => {
+    if (!popupElement || popupElement.type !== 'text') return;
+    popupElement.bgHighlight = b.dataset.color || null;
+    popupElement.bgSolid = null;
+    popupElement._bgManual = true; // el usuario eligió manualmente, no auto-detectar
+    document.querySelectorAll('.bg-color-btn').forEach(x => {
+      x.style.outline = (x.dataset.color === (popupElement.bgHighlight || '')) ? '2px solid #2563eb' : 'none';
+    });
+    document.getElementById('popupCableColors').querySelectorAll('.bg-solid-btn').forEach(x => x.style.outline = 'none');
+    redraw();
+  });
+});
+
+// ============================================================
+// FILE LOADING
+// ============================================================
+document.getElementById('btnLoad').onclick = () => document.getElementById('fileInput').click();
+document.getElementById('fileInput').onchange = async (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  if (file.type.startsWith('image/')) await loadImage(file);
+  else if (file.type === 'application/pdf') await loadPdf(file);
+  else toast('Formato no soportado');
+};
+async function loadImage(file) {
+  return new Promise((resolve) => {
+    const reader = new FileReader();
+    reader.onload = (e) => { const img = new Image(); img.onload = () => { renderToCanvas(img); resolve(); }; img.src = e.target.result; };
+    reader.readAsDataURL(file);
+  });
+}
+async function loadPdf(file) {
+  pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+  const buf = await file.arrayBuffer();
+  const pdf = await pdfjsLib.getDocument({ data: buf }).promise;
+  const page = await pdf.getPage(1);
+  const vp = page.getViewport({ scale: 2 });
+  const c = document.createElement('canvas');
+  c.width = vp.width; c.height = vp.height;
+  await page.render({ canvasContext: c.getContext('2d'), viewport: vp }).promise;
+
+  // Extraer capa de texto con posiciones reales en el canvas
+  try {
+    const textContent = await page.getTextContent();
+    state.pdfTexts = textContent.items
+      .filter(item => item.str && item.str.trim().length >= 2)
+      .map(item => {
+        const pt = vp.convertToViewportPoint(item.transform[4], item.transform[5]);
+        return { text: item.str.trim(), x: Math.round(pt[0]), y: Math.round(pt[1]) };
+      });
+    toast('PDF cargado · ' + state.pdfTexts.length + ' elementos de texto detectados');
+  } catch(e) {
+    state.pdfTexts = [];
+    console.warn('No se pudo extraer texto del PDF:', e);
+  }
+
+  renderToCanvas(c);
+}
+function renderToCanvas(source) {
+  const c = document.getElementById('bgCanvas');
+  c.width = source.width; c.height = source.height;
+  c.getContext('2d').drawImage(source, 0, 0);
+  state.bgWidth = source.width;
+  state.bgHeight = source.height;
+  state.bgLoaded = true;
+  document.getElementById('emptyStage').style.display = 'none';
+  document.getElementById('canvasWrap').style.visibility = 'visible';
+  showHint();
+  fitToView();
+  redraw();
+  toast('Plano cargado');
+}
+function fitToView() {
+  const r = document.getElementById('stage').getBoundingClientRect();
+  state.scale = Math.min(r.width / state.bgWidth, r.height / state.bgHeight) * 0.95;
+  state.panX = (r.width - state.bgWidth * state.scale) / 2;
+  state.panY = (r.height - state.bgHeight * state.scale) / 2;
+  applyTransform();
+}
+function applyTransform() {
+  document.getElementById('canvasWrap').style.transform = `translate(${state.panX}px, ${state.panY}px) scale(${state.scale})`;
+}
+
+function showHint() {
+  const h = document.getElementById('panHint');
+  h.classList.remove('hidden');
+  clearTimeout(showHint._t);
+  showHint._t = setTimeout(() => h.classList.add('hidden'), 5000);
+}
+document.getElementById('hintClose').onclick = () => document.getElementById('panHint').classList.add('hidden');
+
+// ============================================================
+// TOUCH
+// ============================================================
+const stageEl = document.getElementById('stage');
+
+stageEl.addEventListener('touchstart', (e) => {
+  if (e.touches.length === 2) {
+    clearLongPress();
+    dragState = null;
+    stageEl.classList.remove('panning');
+    const t0 = e.touches[0], t1 = e.touches[1];
+    const dx = t0.clientX - t1.clientX, dy = t0.clientY - t1.clientY;
+    pinch = { dist: Math.sqrt(dx*dx + dy*dy), scale: state.scale, panX: state.panX, panY: state.panY, cx: (t0.clientX + t1.clientX)/2, cy: (t0.clientY + t1.clientY)/2 };
+    e.preventDefault();
+  } else if (e.touches.length === 1 && !pinch) {
+    onPointerDown(e);
+  }
+}, { passive: false });
+
+stageEl.addEventListener('touchmove', (e) => {
+  if (e.touches.length === 2 && pinch) {
+    const t0 = e.touches[0], t1 = e.touches[1];
+    const dx = t0.clientX - t1.clientX, dy = t0.clientY - t1.clientY;
+    const d = Math.sqrt(dx*dx + dy*dy);
+    const cx = (t0.clientX + t1.clientX) / 2, cy = (t0.clientY + t1.clientY) / 2;
+    const r = stageEl.getBoundingClientRect();
+    const factor = d / pinch.dist;
+    state.scale = pinch.scale * factor;
+    state.panX = (cx - r.left) - ((pinch.cx - r.left) - pinch.panX) * factor;
+    state.panY = (cy - r.top)  - ((pinch.cy - r.top)  - pinch.panY)  * factor;
+    applyTransform();
+    e.preventDefault();
+  } else if (e.touches.length === 1 && !pinch) {
+    onPointerMove(e);
+  }
+}, { passive: false });
+
+stageEl.addEventListener('touchend', (e) => {
+  if (e.touches.length < 2) pinch = null;
+  if (e.touches.length === 0) onPointerUp(e);
+}, { passive: false });
+
+stageEl.addEventListener('touchcancel', () => { pinch = null; dragState = null; clearLongPress(); stageEl.classList.remove('panning'); });
+
+stageEl.addEventListener('mousedown', onPointerDown);
+document.addEventListener('mousemove', onPointerMove);
+document.addEventListener('mouseup', onPointerUp);
+
+stageEl.addEventListener('wheel', (e) => {
+  if (!state.bgLoaded) return;
+  e.preventDefault();
+  const r = e.currentTarget.getBoundingClientRect();
+  const mx = e.clientX - r.left, my = e.clientY - r.top;
+  const bx = (mx - state.panX) / state.scale, by = (my - state.panY) / state.scale;
+  state.scale *= e.deltaY < 0 ? 1.1 : 1/1.1;
+  state.panX = mx - bx * state.scale;
+  state.panY = my - by * state.scale;
+  applyTransform();
+}, { passive: false });
+
+stageEl.addEventListener('dblclick', () => {
+  if (state.tool === 'cable' && state.pendingPath) { finishPath(); redraw(); toast('Cable finalizado'); }
+});
+stageEl.addEventListener('contextmenu', (e) => e.preventDefault());
+
+// ============================================================
+// PANEL
+// ============================================================
+document.getElementById('btnSettings').onclick = () => openPanel('settingsPanel');
+document.getElementById('btnProject').onclick = () => openPanel('projectPanel');
+function openPanel(id) {
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('open'));
+  document.getElementById(id).classList.add('open');
+}
+function closePanel(id) { document.getElementById(id).classList.remove('open'); }
+window.closePanel = closePanel;
+
+['setEquipo','setNombre','setGrapeoCr','setGrapeoArq','setDefaultLetra','setDefaultTextSize'].forEach(id => document.getElementById(id).addEventListener('input', syncSettingsFromUI));
+document.getElementById('setDefaultLetra').addEventListener('change', syncSettingsFromUI);
+['prjTitle','prjName','prjSuc','prjEmpalmes','prjFecha','prjCableText'].forEach(id => document.getElementById(id).addEventListener('input', syncProjectFromUI));
+document.getElementById('prjAddCajetin').addEventListener('change', syncProjectFromUI);
+
+// ============================================================
+// TOPBAR
+// ============================================================
+document.getElementById('btnUndo').onclick = undo;
+document.getElementById('activeCableBar').onclick = () => {
+  state.activeCableId = null; updateActiveCableUI(); redraw(); toast('Sin cable activo');
+};
+
+// ============================================================
+// EXPORT / SHARE
+// ============================================================
+async function generatePlanBlob() {
+  const W = state.bgWidth, H = state.bgHeight;
+  const addCajetin = project.addCajetin;
+  const c = document.createElement('canvas');
+  c.width = W; c.height = addCajetin ? H + 240 : H;
+  const ctx = c.getContext('2d');
+  ctx.fillStyle = 'white'; ctx.fillRect(0, 0, c.width, c.height);
+  ctx.drawImage(document.getElementById('bgCanvas'), 0, 0);
+  ctx.globalCompositeOperation = 'multiply';
+  state.elements.forEach(el => {
+    if (el.type === 'highlight') {
+      ctx.fillStyle = el.color || '#fef08a';
+      ctx.fillRect(Math.min(el.x1, el.x2), Math.min(el.y1, el.y2), Math.abs(el.x2 - el.x1), Math.abs(el.y2 - el.y1));
+    } else if (el.type === 'text' && el.bgHighlight) {
+      const fs = el.fontSize || settings.defaultTextSize;
+      const lines = (el.text || '').split('\n');
+      const lineH = fs * 1.25;
+      const maxLen = Math.max(...lines.map(l => l.length), 1);
+      const tw = el.boxW || (maxLen * fs * 0.6 + 10);
+      const th = el.boxH || (lines.length * lineH + 6);
+      ctx.fillStyle = el.bgHighlight;
+      ctx.fillRect(el.x - 4, el.y - fs, tw, th);
+    }
+  });
+  ctx.globalCompositeOperation = 'source-over';
+  const svg = document.getElementById('overlay');
+  const clone = svg.cloneNode(true);
+  clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+  clone.querySelectorAll('rect[style*="multiply"]').forEach(n => n.remove());
+  // No exportar los tiradores de redimensión
+  clone.querySelectorAll('[data-resize-id]').forEach(n => n.remove());
+  const svgStr = new XMLSerializer().serializeToString(clone);
+  const svgBlob = new Blob([svgStr], { type: 'image/svg+xml;charset=utf-8' });
+  const url = URL.createObjectURL(svgBlob);
+  await new Promise((res, rej) => {
+    const img = new Image();
+    img.onload = () => { ctx.drawImage(img, 0, 0, W, H); URL.revokeObjectURL(url); res(); };
+    img.onerror = rej;
+    img.src = url;
+  });
+  if (addCajetin) drawCajetin(ctx, 0, H, W, 240);
+  return new Promise(r => c.toBlob(r, 'image/png'));
+}
+
+document.getElementById('btnExport').onclick = async () => {
+  if (!state.bgLoaded) { toast('Carga un plano primero'); return; }
+  const blob = await generatePlanBlob();
+  const fname = (getTitle() || 'plano').replace(/[^\w\s\-\.]/g, '_').replace(/\s+/g, '_') + '.png';
+  const a = document.createElement('a');
+  a.download = fname;
+  a.href = URL.createObjectURL(blob);
+  a.click();
+  toast('Descargado: ' + fname);
+};
+
+// Share button: shown only if Web Share is supported
+if (navigator.canShare) document.getElementById('btnShare').style.display = '';
+document.getElementById('btnShare').onclick = async () => {
+  if (!state.bgLoaded) { toast('Carga un plano primero'); return; }
+  const blob = await generatePlanBlob();
+  const fname = (getTitle() || 'plano').replace(/[^\w\s\-\.]/g, '_').replace(/\s+/g, '_') + '.png';
+  const file = new File([blob], fname, { type: 'image/png' });
+  if (navigator.canShare && navigator.canShare({ files: [file] })) {
+    try { await navigator.share({ files: [file], title: getTitle() }); toast('Compartido'); }
+    catch (e) { if (e.name !== 'AbortError') toast('Error: ' + e.message); }
+  } else {
+    toast('Tu navegador no soporta compartir');
+  }
+};
+
+function drawCajetin(ctx, x, y, w, h) {
+  ctx.fillStyle = '#fff'; ctx.fillRect(x, y, w, h);
+  ctx.strokeStyle = '#000'; ctx.lineWidth = 1; ctx.strokeRect(x, y, w, h);
+  const m = calcMalla();
+  const perCable = calcPerCable();
+  const cableTxt = project.cableText || perCable.filter(c => c.id !== '__unassigned__').map(c => c.type).join(' + ') || '—';
+  const px = x + 20; let py = y + 30;
+  ctx.fillStyle = '#000'; ctx.font = 'bold 16px Arial';
+  ctx.fillText(`${getTitle()}`, px, py); py += 24;
+  ctx.font = '13px Arial';
+  ctx.fillText(`PROYECTO: ${project.name || '—'}`, px, py); py += 18;
+  ctx.fillText(`EQUIPO: ${settings.equipo || '—'}    NOMBRE: ${settings.nombre || '—'}    FECHA: ${project.fecha || '—'}`, px, py); py += 18;
+  ctx.fillText(`TIPO DE CABLE: ${cableTxt}    SUC: ${project.suc || '—'}    EMPALMES: ${project.empalmes || '—'}`, px, py); py += 22;
+  ctx.font = 'bold 14px Arial';
+  ctx.fillText(`MALLA (A+B): ${m} m`, px, py); py += 20;
+  ctx.font = '13px Arial';
+  perCable.forEach(c => {
+    if (c.id === '__unassigned__' && c.total === 0) return;
+    const lbl = c.id === '__unassigned__' ? 'Sin asignar' : c.type;
+    ctx.fillText(`  ${lbl}: ${c.total} m  (tramos ${c.tramos} · valonas ${c.valonas} · grapeo ${c.grapeo})`, px, py);
+    py += 17;
+  });
+}
+
+// ============================================================
+// TOAST
+// ============================================================
+let toastTimer = null;
+function toast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.style.display = 'block';
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.style.display = 'none', 2000);
+}
+
+// ============================================================
+// KEYBOARD
+// ============================================================
+document.addEventListener('keydown', (e) => {
+  if (e.key === ' ' && !e.repeat && !['INPUT','TEXTAREA','SELECT'].includes(document.activeElement.tagName)) {
+    spaceDown = true;
+    document.getElementById('stage').classList.add('pan-mode');
+    e.preventDefault();
+  }
+  if (e.key === 'Escape') {
+    if (document.getElementById('elemPopup').classList.contains('open')) closePopup();
+    else if (document.getElementById('stackPicker').classList.contains('open')) closeStackPicker();
+    else if (state.pendingPath) { finishPath(); redraw(); toast('Cable finalizado'); }
+    else closeDrawer();
+    document.querySelectorAll('.panel.open').forEach(p => p.classList.remove('open'));
+  } else if (e.key === 'Enter' && document.getElementById('elemPopup').classList.contains('open')) {
+    if (e.target.tagName !== 'TEXTAREA') document.getElementById('popupOk').click();
+  } else if (e.ctrlKey && e.key === 'z') { e.preventDefault(); undo(); }
+  else if (e.key === 'Delete' && state.selectedId && !['INPUT','TEXTAREA','SELECT'].includes(document.activeElement.tagName)) {
+    pushHistory();
+    state.elements = state.elements.filter(el => el.id !== state.selectedId);
+    state.selectedId = null; redraw();
+  }
+});
+document.addEventListener('keyup', (e) => {
+  if (e.key === ' ') { spaceDown = false; document.getElementById('stage').classList.remove('pan-mode'); }
+});
+
+// ============================================================
+// INIT
+// ============================================================
+loadSettings();
+buildToolbar();
+syncSettingsToUI();
+syncProjectFromUI();
+updateCalc();
+document.getElementById('prjFecha').value = new Date().toISOString().split('T')[0];
+project.fecha = document.getElementById('prjFecha').value;
+</script>
+</body>
+</html>
