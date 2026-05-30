@@ -21,14 +21,14 @@
   .app { display: flex; flex-direction: column; height: 100vh; height: 100dvh; padding-bottom: env(safe-area-inset-bottom); }
 
   /* TOP BAR */
-  .topbar { flex: 0 0 44px; display: flex; align-items: center; gap: 4px; padding: 0 8px; background: #0f1115; border-bottom: 1px solid #2a2f3a; }
-  .topbar .logo { color: #2563eb; font-weight: 800; font-size: 14px; }
+  .topbar { flex: 0 0 48px; display: flex; align-items: center; gap: 6px; padding: 0 10px; background: #0f1115; border-bottom: 1px solid #2a2f3a; }
+  .topbar .logo { color: #2563eb; font-weight: 800; font-size: 15px; }
   .topbar .ver { font-size: 10px; color: #6b7280; font-weight: 600; margin-left: 3px; }
   .topbar .spacer { flex: 1; }
-  .topbar button { padding: 5px 9px; border-radius: 6px; background: #1f2530; font-size: 12px; font-weight: 500; min-width: 36px; }
+  .topbar button { padding: 8px 11px; border-radius: 8px; background: #1f2530; font-size: 17px; font-weight: 500; min-width: 42px; min-height: 38px; line-height: 1; }
   .topbar button:hover { background: #2a3140; }
   .topbar button.primary { background: #2563eb; color: white; }
-  .topbar button.undo { background: #374151; font-size: 16px; padding: 5px 12px; }
+  .topbar button.undo { background: #374151; font-size: 22px; padding: 4px 14px; }
   .topbar button.undo:hover { background: #4b5563; }
 
   /* STAGE */
@@ -166,9 +166,11 @@
   .active-cable { filter: drop-shadow(0 0 3px #60a5fa); }
 
   @media (max-width: 768px) {
-    .topbar button { padding: 4px 7px; font-size: 11px; min-width: 32px; }
-    .topbar .undo { padding: 4px 10px; }
-    .tool { padding: 5px 8px; font-size: 10px; }
+    .topbar { flex: 0 0 52px; gap: 5px; padding: 0 8px; }
+    .topbar button { padding: 9px 10px; font-size: 19px; min-width: 44px; min-height: 42px; border-radius: 8px; }
+    .topbar button.undo { padding: 6px 14px; font-size: 24px; }
+    .topbar .logo { font-size: 14px; }
+    .tool { padding: 7px 10px; font-size: 12px; min-height: 38px; }
     .panel { width: 100vw; }
   }
 
