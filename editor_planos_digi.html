@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no, viewport-fit=cover">
-<title>Editor de Planos DIGI v5.5</title>
+<title>Editor de Planos DIGI v5.6</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
@@ -143,6 +143,7 @@
   .elem-popup .btn-row button.del { background: #7f1d1d; color: #fecaca; }
   .elem-popup .btn-row button.del-near { background: #b45309; color: #fef3c7; }
   .elem-popup .btn-row button.repeat-down { background: #047857; color: #d1fae5; }
+  .elem-popup .btn-row button.repeat-blank { background: #1e40af; color: #dbeafe; }
   .elem-popup .btn-row button.ok { background: #2563eb; color: white; }
 
   /* STACKED PICKER */
@@ -183,7 +184,7 @@
 <div class="app">
 
   <div class="topbar">
-    <span class="logo">DIGI<span class="ver">v5.5</span></span>
+    <span class="logo">DIGI<span class="ver">v5.6</span></span>
     <span class="spacer"></span>
     <button id="btnUndo" class="undo" title="Deshacer">↶</button>
     <button id="btnSettings" title="Ajustes">⚙️</button>
@@ -199,7 +200,7 @@
       <div class="logo-wrap">
         <div class="logo-main">DIGI</div>
         <div class="logo-sub">Editor de Planos</div>
-        <div class="logo-ver">v5.5</div>
+        <div class="logo-ver">v5.6</div>
       </div>
       <div class="cable-line"></div>
       <p>Carga una imagen o PDF del plano base para comenzar</p>
@@ -324,6 +325,7 @@
     <button class="del" id="popupDel">Borrar</button>
     <button class="del-near" id="popupDelNear" title="Borra todos los elementos dentro de 25px">Borrar cerca</button>
     <button class="repeat-down" id="popupRepeatDown" title="Duplicar el texto debajo (aprende la separación)" style="display:none">↓ Repetir</button>
+    <button class="repeat-blank" id="popupRepeatBlank" title="Saltar abajo con caja vacía para escribir distinto" style="display:none">↓ Siguiente</button>
     <button class="ok" id="popupOk">OK</button>
   </div>
 </div>
@@ -1367,7 +1369,7 @@ function createElementAt(x, y) {
     const nc = findNearestCable(x, y) || getActiveCable();
     return { id: newId(), type: 'valona', x, y, meters: 10, cableId: nc ? nc.id : null };
   }
-  if (state.tool === 'text') return { id: newId(), type: 'text', x, y, text: '', background: false, fontSize: settings.defaultTextSize, bold: false };
+  if (state.tool === 'text') return { id: newId(), type: 'text', x, y, text: '', background: false, fontSize: settings.defaultTextSize, bold: true };
   if (state.tool === 'xmark') return { id: newId(), type: 'xmark', x, y };
   if (state.tool === 'nota') return { id: newId(), type: 'nota', x, y, num: nextNotaNum(), text: '' };
   return null;
@@ -1597,6 +1599,7 @@ function openElemPopup(el, evt) {
   cableWrap.style.display = 'none';
   document.getElementById('popupBgColorWrap').style.display = 'none';
   document.getElementById('popupRepeatDown').style.display = 'none';
+  document.getElementById('popupRepeatBlank').style.display = 'none';
   labelInput.readOnly = false;
   labelInput.style.textTransform = 'none';
 
@@ -1637,6 +1640,7 @@ function openElemPopup(el, evt) {
     boldCheck.checked = el.bold === true;
     document.getElementById('popupBgColorWrap').style.display = 'block';
     document.getElementById('popupRepeatDown').style.display = 'block';
+    document.getElementById('popupRepeatBlank').style.display = 'block';
     // Mark active highlight button
     document.querySelectorAll('.bg-color-btn').forEach(b => {
       b.style.outline = (!el.bgSolid && b.dataset.color === (el.bgHighlight || '')) ? '2px solid #2563eb' : 'none';
@@ -1781,27 +1785,29 @@ document.getElementById('popupDelNear').onclick = () => {
   toast(`Borrados ${toRemove.length} elementos`);
 };
 
-// ↓ Repetir abajo: duplica el texto seleccionado debajo, aprendiendo la separación
-// si ya existe otra copia con el mismo texto y misma columna.
+// Aprende la separación vertical hacia abajo mirando textos vecinos en la misma columna.
+// soloMismoTexto=true → solo cuenta hermanos con el mismo texto (para ↓ Repetir).
+// soloMismoTexto=false → cualquier texto en la columna (para ↓ Siguiente).
+function aprenderSeparacionAbajo(el, soloMismoTexto) {
+  const cand = state.elements.filter(e =>
+    e.type === 'text' && e !== el &&
+    Math.abs((e.x || 0) - (el.x || 0)) < 30 &&
+    (!soloMismoTexto || (e.text || '') === (el.text || ''))
+  );
+  if (cand.length > 0) {
+    cand.sort((a, b) => Math.abs(a.y - el.y) - Math.abs(b.y - el.y));
+    const dy = Math.abs(cand[0].y - el.y);
+    if (dy >= 6) return dy;
+  }
+  const lines = (el.text || ' ').split('\n');
+  const fs = el.fontSize || settings.defaultTextSize;
+  return el.boxH || (lines.length * fs * 1.25 + 6);
+}
+
 document.getElementById('popupRepeatDown').onclick = () => {
   if (!popupElement || popupElement.type !== 'text') return;
   const el = popupElement;
-  // Buscar copias del mismo texto en la misma columna (x parecida)
-  const hermanos = state.elements.filter(e =>
-    e.type === 'text' && e !== el &&
-    (e.text || '') === (el.text || '') &&
-    Math.abs((e.x || 0) - (el.x || 0)) < 30
-  );
-  let dy;
-  if (hermanos.length > 0) {
-    hermanos.sort((a, b) => Math.abs(a.y - el.y) - Math.abs(b.y - el.y));
-    dy = Math.abs(hermanos[0].y - el.y);
-    if (dy < 6) dy = (el.boxH || 22);
-  } else {
-    const lines = (el.text || ' ').split('\n');
-    const fs = el.fontSize || settings.defaultTextSize;
-    dy = el.boxH || (lines.length * fs * 1.25 + 6);
-  }
+  const dy = aprenderSeparacionAbajo(el, true);
   pushHistory();
   const nueva = JSON.parse(JSON.stringify(el));
   nueva.id = newId();
@@ -1811,6 +1817,27 @@ document.getElementById('popupRepeatDown').onclick = () => {
   popupElement = nueva;
   redraw();
   toast('Copia añadida');
+};
+
+document.getElementById('popupRepeatBlank').onclick = () => {
+  if (!popupElement || popupElement.type !== 'text') return;
+  const el = popupElement;
+  const dy = aprenderSeparacionAbajo(el, false);
+  pushHistory();
+  const nueva = JSON.parse(JSON.stringify(el));
+  nueva.id = newId();
+  nueva.y = el.y + dy;
+  nueva.text = '';
+  nueva._textColorManual = false;
+  nueva.textColor = null;
+  state.elements.push(nueva);
+  state.selectedId = nueva.id;
+  popupElement = nueva;
+  const labelInput = document.getElementById('popupLabel');
+  labelInput.value = '';
+  setTimeout(() => labelInput.focus(), 30);
+  redraw();
+  toast('Listo para escribir');
 };
 
 document.getElementById('popupLabel').addEventListener('input', (e) => {
@@ -1825,16 +1852,9 @@ document.getElementById('popupLabel').addEventListener('input', (e) => {
     document.querySelectorAll('.text-color-btn').forEach(x => x.style.outline = (x.dataset.color === (popupElement.textColor||'')) ? '2px solid #fbbf24' : 'none');
     document.getElementById('popupTextCableColors').querySelectorAll('.text-color-cable-btn').forEach(x => x.style.outline = (x.dataset.color === (popupElement.textColor||'')) ? '2px solid #fbbf24' : 'none');
   }
-  if (!popupElement._boldManual) {
-    popupElement.bold = !!auto;
-    document.getElementById('popupBold').checked = !!auto;
-  }
+  // Negrita: ya no se auto-cambia con el cable. Por defecto los textos nuevos van en negrita;
+  // el usuario decide quitarla manualmente desmarcando la casilla.
   redraw();
-});
-
-// Marcar bold como manual cuando el usuario lo cambia
-document.getElementById('popupBold').addEventListener('change', () => {
-  if (popupElement) popupElement._boldManual = true;
 });
 
 // Bg color buttons for text (resaltado rotulador)
