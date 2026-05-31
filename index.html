@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no, viewport-fit=cover">
-<title>Editor de Planos DIGI v5.6</title>
+<title>Editor de Planos DIGI v5.7</title>
 <meta name="theme-color" content="#1e2a3a">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -26,6 +26,7 @@
   .topbar .ver { font-size: 10px; color: #6b7280; font-weight: 600; margin-left: 3px; }
   .topbar .spacer { flex: 1; }
   .topbar button { padding: 8px 11px; border-radius: 8px; background: #1f2530; font-size: 17px; font-weight: 500; min-width: 42px; min-height: 38px; line-height: 1; }
+  .topbar button#btnExport, .topbar button#btnExportJpg { font-size: 11px; padding: 6px 8px; font-weight: 700; min-width: 50px; }
   .topbar button:hover { background: #2a3140; }
   .topbar button.primary { background: #2563eb; color: white; }
   .topbar button.undo { background: #374151; font-size: 22px; padding: 4px 14px; }
@@ -191,15 +192,16 @@
 <div class="app">
 
   <div class="topbar">
-    <span class="logo">DIGI<span class="ver">v5.6</span></span>
+    <span class="logo">DIGI<span class="ver">v5.7</span></span>
     <span class="spacer"></span>
     <button id="btnUndo" class="undo" title="Deshacer">↶</button>
     <button id="btnSettings" title="Ajustes">⚙️</button>
     <button id="btnProject" class="primary" title="Proyecto">📋</button>
     <input type="file" id="fileInput" accept="image/*,application/pdf" style="display:none">
     <button id="btnLoad" title="Cargar plano">📂</button>
-    <button id="btnExport" title="Descargar">💾</button>
-    <button id="btnShare" title="Compartir" style="display:none">📤</button>
+    <button id="btnExport" title="Descargar PNG (calidad máxima)">💾PNG</button>
+    <button id="btnExportJpg" title="Descargar JPG (más ligero)">💾JPG</button>
+    <button id="btnShare" title="Compartir (JPG)" style="display:none">📤</button>
   </div>
 
   <div class="stage" id="stage">
@@ -207,7 +209,7 @@
       <div class="logo-wrap">
         <div class="logo-main">DIGI</div>
         <div class="logo-sub">Editor de Planos</div>
-        <div class="logo-ver">v5.6</div>
+        <div class="logo-ver">v5.7</div>
       </div>
       <div class="cable-line"></div>
       <p>Carga una imagen o PDF del plano base para comenzar</p>
@@ -1032,15 +1034,20 @@ function renderElement(svg, el) {
     svg.appendChild(g);
   } else if (el.type === 'valona') {
     const g = svgEl('g', { class: 'marker' + sel, 'data-elem-id': id });
+    const s = el.size || 1;
     // Anillo exterior con el color del cable asignado
     const cableColor = (() => { const c = state.elements.find(e => e.id === el.cableId); return c ? c.color : null; })();
     if (cableColor) {
-      g.appendChild(svgEl('circle', { cx: el.x, cy: el.y, r: 18, fill: 'none', stroke: cableColor, 'stroke-width': 3.5, 'stroke-opacity': '0.85', 'data-elem-id': id }));
+      g.appendChild(svgEl('circle', { cx: el.x, cy: el.y, r: 18*s, fill: 'none', stroke: cableColor, 'stroke-width': 3.5*s, 'stroke-opacity': '0.85', 'data-elem-id': id }));
     }
-    g.appendChild(svgEl('circle', { cx: el.x, cy: el.y, r: 14, fill: '#fb923c', stroke: '#000', 'stroke-width': 1.5, 'data-elem-id': id }));
-    const txt = svgEl('text', { x: el.x, y: el.y + 5, 'font-size': '13', 'font-family': 'Arial, sans-serif', 'font-weight': 'bold', fill: '#000', 'text-anchor': 'middle', 'data-elem-id': id });
+    g.appendChild(svgEl('circle', { cx: el.x, cy: el.y, r: 14*s, fill: '#fb923c', stroke: '#000', 'stroke-width': 1.5*s, 'data-elem-id': id }));
+    const txt = svgEl('text', { x: el.x, y: el.y + 5*s, 'font-size': 13*s, 'font-family': 'Arial, sans-serif', 'font-weight': 'bold', fill: '#000', 'text-anchor': 'middle', 'data-elem-id': id });
     txt.textContent = el.meters || '';
     g.appendChild(txt);
+    if (isSel) {
+      const off = 18*s + 6;
+      g.appendChild(svgEl('rect', { x: el.x + off, y: el.y + off, width: 14, height: 14, rx: 3, fill: '#2563eb', stroke: '#fff', 'stroke-width': 2, 'data-resize-id': id, style: 'cursor:nwse-resize' }));
+    }
     svg.appendChild(g);
   } else if (el.type === 'highlight') {
     svg.appendChild(svgEl('rect', { x: Math.min(el.x1, el.x2), y: Math.min(el.y1, el.y2), width: Math.abs(el.x2 - el.x1), height: Math.abs(el.y2 - el.y1), fill: el.color || '#fef08a', style: 'mix-blend-mode: multiply', class: 'marker' + sel, 'data-elem-id': id }));
@@ -1109,17 +1116,22 @@ function renderElement(svg, el) {
     svg.appendChild(g);
   } else if (el.type === 'nota') {
     const g = svgEl('g', { class: 'marker' + sel, 'data-elem-id': id });
+    const s = el.size || 1;
     // Círculo blanco de contraste para que destaque sobre cualquier fondo
-    g.appendChild(svgEl('circle', { cx: el.x, cy: el.y, r: 15, fill: '#fff', stroke: '#dc2626', 'stroke-width': 2.5, 'data-elem-id': id }));
+    g.appendChild(svgEl('circle', { cx: el.x, cy: el.y, r: 15*s, fill: '#fff', stroke: '#dc2626', 'stroke-width': 2.5*s, 'data-elem-id': id }));
     // Asterisco rojo grande
-    const ast = svgEl('text', { x: el.x, y: el.y + 8, 'font-size': 26, 'font-family': 'Arial, sans-serif', 'font-weight': '900', fill: '#dc2626', 'text-anchor': 'middle', 'data-elem-id': id });
+    const ast = svgEl('text', { x: el.x, y: el.y + 8*s, 'font-size': 26*s, 'font-family': 'Arial, sans-serif', 'font-weight': '900', fill: '#dc2626', 'text-anchor': 'middle', 'data-elem-id': id });
     ast.textContent = '✱';
     g.appendChild(ast);
     // Número en globo amarillo arriba a la derecha
-    g.appendChild(svgEl('circle', { cx: el.x + 13, cy: el.y - 11, r: 8, fill: '#fde047', stroke: '#000', 'stroke-width': 1, 'data-elem-id': id }));
-    const num = svgEl('text', { x: el.x + 13, y: el.y - 7, 'font-size': 11, 'font-family': 'Arial, sans-serif', 'font-weight': '800', fill: '#000', 'text-anchor': 'middle', 'data-elem-id': id });
+    g.appendChild(svgEl('circle', { cx: el.x + 13*s, cy: el.y - 11*s, r: 8*s, fill: '#fde047', stroke: '#000', 'stroke-width': 1, 'data-elem-id': id }));
+    const num = svgEl('text', { x: el.x + 13*s, y: el.y - 7*s, 'font-size': 11*s, 'font-family': 'Arial, sans-serif', 'font-weight': '800', fill: '#000', 'text-anchor': 'middle', 'data-elem-id': id });
     num.textContent = el.num || '';
     g.appendChild(num);
+    if (isSel) {
+      const off = 18*s + 6;
+      g.appendChild(svgEl('rect', { x: el.x + off, y: el.y + off, width: 14, height: 14, rx: 3, fill: '#2563eb', stroke: '#fff', 'stroke-width': 2, 'data-resize-id': id, style: 'cursor:nwse-resize' }));
+    }
     svg.appendChild(g);
   }
 }
@@ -1276,6 +1288,19 @@ function onPointerDown(evt) {
     const rid = resizeTarget.getAttribute('data-resize-id');
     const rel = state.elements.find(e => e.id === rid);
     if (rel) {
+      // Valona y nota: redimensionado proporcional (un solo factor 'size')
+      if (rel.type === 'valona' || rel.type === 'nota') {
+        pushHistory();
+        dragState = {
+          type: 'scale-resize', resizeEl: rel,
+          startStageX: sp.x, startStageY: sp.y,
+          sizeStart: rel.size || 1,
+          startClientX: coords.x, startClientY: coords.y, moved: false
+        };
+        evt.preventDefault();
+        return;
+      }
+      // Texto: caja con ancho/alto independientes
       const lines = (rel.text || '').split('\n');
       const fs = rel.fontSize || settings.defaultTextSize;
       const maxLen = Math.max(...lines.map(l => l.length), 1);
@@ -1402,6 +1427,15 @@ function onPointerMove(evt) {
     evt.preventDefault();
     return;
   }
+  // SCALE-RESIZE: escalado proporcional para valona y asterisco
+  if (dragState.type === 'scale-resize') {
+    const sp = getStagePoint(coords.x, coords.y);
+    const delta = Math.max(sp.x - dragState.startStageX, sp.y - dragState.startStageY);
+    dragState.resizeEl.size = Math.max(0.4, Math.min(6, dragState.sizeStart + delta / 35));
+    redraw();
+    evt.preventDefault();
+    return;
+  }
 
   // PLACEMENT-MOVE: drag the just-placed element
   if (dragState.type === 'placement-move') {
@@ -1479,7 +1513,7 @@ function onPointerUp(evt) {
     dragState = null;
     return;
   }
-  if (dragState.type === 'pan' || dragState.type === 'elem-move' || dragState.type === 'box-resize') {
+  if (dragState.type === 'pan' || dragState.type === 'elem-move' || dragState.type === 'box-resize' || dragState.type === 'scale-resize') {
     dragState = null;
     return;
   }
@@ -2074,7 +2108,7 @@ document.getElementById('activeCableBar').onclick = () => {
 // ============================================================
 // EXPORT / SHARE
 // ============================================================
-async function generatePlanBlob() {
+async function generatePlanBlob(mime = 'image/png', quality) {
   const W = state.bgWidth, H = state.bgHeight;
   const addCajetin = project.addCajetin;
   const c = document.createElement('canvas');
@@ -2115,27 +2149,32 @@ async function generatePlanBlob() {
     img.src = url;
   });
   if (addCajetin) drawCajetin(ctx, 0, H, W, 240);
-  return new Promise(r => c.toBlob(r, 'image/png'));
+  return new Promise(r => c.toBlob(r, mime, quality));
 }
 
-document.getElementById('btnExport').onclick = async () => {
+function _baseFilename() {
+  return (getTitle() || 'plano').replace(/[^\w\s\-\.]/g, '_').replace(/\s+/g, '_');
+}
+async function descargar(mime, ext, quality) {
   if (!state.bgLoaded) { toast('Carga un plano primero'); return; }
-  const blob = await generatePlanBlob();
-  const fname = (getTitle() || 'plano').replace(/[^\w\s\-\.]/g, '_').replace(/\s+/g, '_') + '.png';
+  const blob = await generatePlanBlob(mime, quality);
+  const fname = _baseFilename() + '.' + ext;
   const a = document.createElement('a');
   a.download = fname;
   a.href = URL.createObjectURL(blob);
   a.click();
   toast('Descargado: ' + fname);
-};
+}
+document.getElementById('btnExport').onclick    = () => descargar('image/png', 'png');
+document.getElementById('btnExportJpg').onclick = () => descargar('image/jpeg', 'jpg', 0.92);
 
-// Share button: shown only if Web Share is supported
+// Share button: shown only if Web Share is supported. Comparte JPG (más ligero).
 if (navigator.canShare) document.getElementById('btnShare').style.display = '';
 document.getElementById('btnShare').onclick = async () => {
   if (!state.bgLoaded) { toast('Carga un plano primero'); return; }
-  const blob = await generatePlanBlob();
-  const fname = (getTitle() || 'plano').replace(/[^\w\s\-\.]/g, '_').replace(/\s+/g, '_') + '.png';
-  const file = new File([blob], fname, { type: 'image/png' });
+  const blob = await generatePlanBlob('image/jpeg', 0.92);
+  const fname = _baseFilename() + '.jpg';
+  const file = new File([blob], fname, { type: 'image/jpeg' });
   if (navigator.canShare && navigator.canShare({ files: [file] })) {
     try { await navigator.share({ files: [file], title: getTitle() }); toast('Compartido'); }
     catch (e) { if (e.name !== 'AbortError') toast('Error: ' + e.message); }
