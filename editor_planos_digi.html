@@ -311,6 +311,13 @@
     </div>
     <label style="margin-top:8px;">Fondo sólido color cable (cubre la casilla)</label>
     <div id="popupCableColors" style="display:flex;gap:6px;flex-wrap:wrap;"></div>
+    <label style="margin-top:10px;">Color del texto</label>
+    <div style="display:flex;gap:6px;margin-bottom:4px;">
+      <button type="button" class="text-color-btn" data-color="" style="flex:1;padding:6px;border-radius:4px;background:#1f2530;border:1px solid #2a3140;font-size:11px;color:#e5e7eb;">Auto</button>
+      <button type="button" class="text-color-btn" data-color="#000000" style="flex:1;padding:6px;border-radius:4px;background:#000;color:#fff;font-size:11px;font-weight:600;border:1px solid #444;">Negro</button>
+      <button type="button" class="text-color-btn" data-color="#ffffff" style="flex:1;padding:6px;border-radius:4px;background:#fff;color:#000;font-size:11px;font-weight:600;border:1px solid #aaa;">Blanco</button>
+    </div>
+    <div id="popupTextCableColors" style="display:flex;gap:6px;flex-wrap:wrap;"></div>
   </div>
   <div class="btn-row">
     <button class="del" id="popupDel">Borrar</button>
@@ -1053,6 +1060,8 @@ function renderElement(svg, el) {
     } else if (!el.bgHighlight && !el.bgSolid) {
       g.appendChild(svgEl('rect', { x: bx, y: by, width: w, height: h, fill: 'transparent', 'data-elem-id': id }));
     }
+    // Color del texto: si el usuario lo eligió manualmente lo respeta; si no, lo deriva del fondo
+    if (el.textColor) textColor = el.textColor;
     lines.forEach((ln, i) => {
       const t = svgEl('text', { x: el.x, y: el.y + i * lineH, 'font-size': fs, 'font-family': 'Arial, sans-serif', 'font-weight': el.bold ? '700' : '500', fill: textColor, 'data-elem-id': id });
       const m = ln.match(/^(✱\d+)(.*)$/);
@@ -1646,6 +1655,29 @@ function openElemPopup(el, evt) {
       };
       ccWrap.appendChild(btn);
     });
+    // Botones de color de texto: fijos (Auto/Negro/Blanco)
+    document.querySelectorAll('.text-color-btn').forEach(b => {
+      b.style.outline = (b.dataset.color === (el.textColor || '')) ? '2px solid #fbbf24' : 'none';
+    });
+    // Botones de color de texto: colores de cable
+    const tcWrap = document.getElementById('popupTextCableColors');
+    tcWrap.innerHTML = '';
+    CABLE_TYPES.forEach(ct => {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'text-color-cable-btn';
+      btn.dataset.color = ct.color;
+      btn.textContent = 'T ' + ct.id;
+      const dark = isColorDark(ct.color);
+      btn.style.cssText = `padding:5px 8px;border-radius:4px;background:#1f2530;color:${ct.color};font-size:10px;font-weight:800;border:1px solid ${ct.color};outline:${el.textColor===ct.color?'2px solid #fbbf24':'none'};`;
+      btn.onclick = () => {
+        popupElement.textColor = (popupElement.textColor === ct.color) ? null : ct.color;
+        tcWrap.querySelectorAll('.text-color-cable-btn').forEach(x => x.style.outline = (x.dataset.color === (popupElement.textColor||'')) ? '2px solid #fbbf24' : 'none');
+        document.querySelectorAll('.text-color-btn').forEach(x => x.style.outline = (x.dataset.color === (popupElement.textColor || '')) ? '2px solid #fbbf24' : 'none');
+        redraw();
+      };
+      tcWrap.appendChild(btn);
+    });
   } else if (el.type === 'nota') {
     labelLabel.textContent = `Texto de la nota ✱${el.num}`;
     labelInput.placeholder = 'Ej: Pendiente de canalización';
@@ -1770,6 +1802,19 @@ document.querySelectorAll('.bg-color-btn').forEach(b => {
       x.style.outline = (x.dataset.color === (popupElement.bgHighlight || '')) ? '2px solid #2563eb' : 'none';
     });
     document.getElementById('popupCableColors').querySelectorAll('.bg-solid-btn').forEach(x => x.style.outline = 'none');
+    redraw();
+  });
+});
+
+// Text color buttons (Auto/Negro/Blanco)
+document.querySelectorAll('.text-color-btn').forEach(b => {
+  b.addEventListener('click', () => {
+    if (!popupElement || popupElement.type !== 'text') return;
+    popupElement.textColor = b.dataset.color || null;
+    document.querySelectorAll('.text-color-btn').forEach(x => {
+      x.style.outline = (x.dataset.color === (popupElement.textColor || '')) ? '2px solid #fbbf24' : 'none';
+    });
+    document.getElementById('popupTextCableColors').querySelectorAll('.text-color-cable-btn').forEach(x => x.style.outline = 'none');
     redraw();
   });
 });
