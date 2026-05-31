@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no, viewport-fit=cover">
-<title>Editor de Planos DIGI v5.7</title>
+<title>Editor de Planos DIGI v5.8</title>
 <meta name="theme-color" content="#1e2a3a">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -192,13 +192,14 @@
 <div class="app">
 
   <div class="topbar">
-    <span class="logo">DIGI<span class="ver">v5.7</span></span>
+    <span class="logo">DIGI<span class="ver">v5.8</span></span>
     <span class="spacer"></span>
     <button id="btnUndo" class="undo" title="Deshacer">↶</button>
     <button id="btnSettings" title="Ajustes">⚙️</button>
     <button id="btnProject" class="primary" title="Proyecto">📋</button>
     <input type="file" id="fileInput" accept="image/*,application/pdf" style="display:none">
     <button id="btnLoad" title="Cargar plano">📂</button>
+    <button id="btnRecientes" title="Proyectos recientes">📁</button>
     <button id="btnExport" title="Descargar PNG (calidad máxima)">💾PNG</button>
     <button id="btnExportJpg" title="Descargar JPG (más ligero)">💾JPG</button>
     <button id="btnShare" title="Compartir (JPG)" style="display:none">📤</button>
@@ -209,7 +210,7 @@
       <div class="logo-wrap">
         <div class="logo-main">DIGI</div>
         <div class="logo-sub">Editor de Planos</div>
-        <div class="logo-ver">v5.7</div>
+        <div class="logo-ver">v5.8</div>
       </div>
       <div class="cable-line"></div>
       <p>Carga una imagen o PDF del plano base para comenzar</p>
@@ -381,6 +382,15 @@
 </div>
 
 <!-- PROJECT PANEL -->
+<div class="panel" id="projectsPanel">
+  <button class="close" onclick="closePanel('projectsPanel')">✕</button>
+  <h2>📁 Proyectos recientes</h2>
+  <div style="font-size:11px;color:#9ca3af;margin-bottom:10px;line-height:1.4">
+    Los planos se guardan automáticamente en este navegador mientras trabajas. Toca uno para reabrirlo.
+  </div>
+  <div id="projectsList"></div>
+</div>
+
 <div class="panel" id="projectPanel">
   <button class="close" onclick="closePanel('projectPanel')">✕</button>
   <h2>📋 Datos del proyecto</h2>
@@ -1110,9 +1120,14 @@ function renderElement(svg, el) {
     svg.appendChild(g);
   } else if (el.type === 'xmark') {
     const g = svgEl('g', { class: 'marker' + sel, 'data-elem-id': id });
-    const s = 14;
-    g.appendChild(svgEl('line', { x1: el.x - s, y1: el.y - s, x2: el.x + s, y2: el.y + s, stroke: '#dc2626', 'stroke-width': 4, 'data-elem-id': id }));
-    g.appendChild(svgEl('line', { x1: el.x - s, y1: el.y + s, x2: el.x + s, y2: el.y - s, stroke: '#dc2626', 'stroke-width': 4, 'data-elem-id': id }));
+    const sz = el.size || 1;
+    const s = 14 * sz;
+    g.appendChild(svgEl('line', { x1: el.x - s, y1: el.y - s, x2: el.x + s, y2: el.y + s, stroke: '#dc2626', 'stroke-width': 4*sz, 'data-elem-id': id }));
+    g.appendChild(svgEl('line', { x1: el.x - s, y1: el.y + s, x2: el.x + s, y2: el.y - s, stroke: '#dc2626', 'stroke-width': 4*sz, 'data-elem-id': id }));
+    if (isSel) {
+      const off = s + 6;
+      g.appendChild(svgEl('rect', { x: el.x + off, y: el.y + off, width: 14, height: 14, rx: 3, fill: '#2563eb', stroke: '#fff', 'stroke-width': 2, 'data-resize-id': id, style: 'cursor:nwse-resize' }));
+    }
     svg.appendChild(g);
   } else if (el.type === 'nota') {
     const g = svgEl('g', { class: 'marker' + sel, 'data-elem-id': id });
@@ -1147,6 +1162,8 @@ function newId() { return 'e' + Date.now() + Math.floor(Math.random() * 1000); }
 function pushHistory() {
   state.history.push(JSON.stringify({ els: state.elements, activeId: state.activeCableId }));
   if (state.history.length > 100) state.history.shift();
+  // Auto-guardar el proyecto en IndexedDB (debounced)
+  if (typeof autoGuardar === 'function') autoGuardar();
 }
 function undo() {
   if (state.pendingPath && state.pendingPath.points.length > 0) {
@@ -1288,8 +1305,8 @@ function onPointerDown(evt) {
     const rid = resizeTarget.getAttribute('data-resize-id');
     const rel = state.elements.find(e => e.id === rid);
     if (rel) {
-      // Valona y nota: redimensionado proporcional (un solo factor 'size')
-      if (rel.type === 'valona' || rel.type === 'nota') {
+      // Valona, nota y X: redimensionado proporcional (un solo factor 'size')
+      if (rel.type === 'valona' || rel.type === 'nota' || rel.type === 'xmark') {
         pushHistory();
         dragState = {
           type: 'scale-resize', resizeEl: rel,
@@ -1385,7 +1402,9 @@ function onPointerDown(evt) {
 function createElementAt(x, y) {
   const td = state.toolData;
   if (state.tool === 'elem') {
-    return { id: newId(), type: 'elem', elemType: td.elemType, x, y, label: '', cableId: state.activeCableId };
+    // ARQ/CR cuentan grapeo: asignamos al cable más cercano para que sumen donde corresponde
+    const nc = findNearestCable(x, y) || getActiveCable();
+    return { id: newId(), type: 'elem', elemType: td.elemType, x, y, label: '', cableId: nc ? nc.id : null };
   }
   if (state.tool === 'tramo') {
     const letra = td.letra !== undefined ? td.letra : settings.defaultLetra;
@@ -1995,6 +2014,12 @@ function renderToCanvas(source) {
   fitToView();
   redraw();
   toast('Plano cargado');
+  // Crear un nuevo proyecto guardado para esta sesión (solo si no estamos reabriendo uno)
+  if (!state._cargandoProyectoGuardado) {
+    state.currentProjectId = null;
+    setTimeout(() => { if (typeof crearProyectoActual === 'function') crearProyectoActual(); }, 200);
+  }
+  state._cargandoProyectoGuardado = false;
 }
 function fitToView() {
   const r = document.getElementById('stage').getBoundingClientRect();
@@ -2085,6 +2110,7 @@ stageEl.addEventListener('contextmenu', (e) => e.preventDefault());
 // ============================================================
 document.getElementById('btnSettings').onclick = () => openPanel('settingsPanel');
 document.getElementById('btnProject').onclick = () => openPanel('projectPanel');
+document.getElementById('btnRecientes').onclick = () => { openPanel('projectsPanel'); refrescarPanelProyectos(); };
 function openPanel(id) {
   document.querySelectorAll('.panel').forEach(p => p.classList.remove('open'));
   document.getElementById(id).classList.add('open');
@@ -2245,6 +2271,184 @@ document.addEventListener('keydown', (e) => {
 document.addEventListener('keyup', (e) => {
   if (e.key === ' ') { spaceDown = false; document.getElementById('stage').classList.remove('pan-mode'); }
 });
+
+// ============================================================
+// PROYECTOS GUARDADOS (IndexedDB)
+// ============================================================
+const DB_NAME = 'digi-planos', DB_STORE = 'projects';
+function openProjectDB() {
+  return new Promise((res, rej) => {
+    const req = indexedDB.open(DB_NAME, 1);
+    req.onupgradeneeded = () => {
+      const db = req.result;
+      if (!db.objectStoreNames.contains(DB_STORE)) {
+        const s = db.createObjectStore(DB_STORE, { keyPath: 'id' });
+        s.createIndex('fecha', 'fecha');
+      }
+    };
+    req.onsuccess = () => res(req.result);
+    req.onerror = () => rej(req.error);
+  });
+}
+
+async function _putProject(entry) {
+  const db = await openProjectDB();
+  await new Promise((res, rej) => {
+    const tx = db.transaction(DB_STORE, 'readwrite');
+    tx.objectStore(DB_STORE).put(entry);
+    tx.oncomplete = res; tx.onerror = () => rej(tx.error);
+  });
+  db.close();
+}
+
+async function _getProject(id) {
+  const db = await openProjectDB();
+  const entry = await new Promise((res, rej) => {
+    const tx = db.transaction(DB_STORE, 'readonly');
+    const req = tx.objectStore(DB_STORE).get(id);
+    req.onsuccess = () => res(req.result);
+    req.onerror = () => rej(req.error);
+  });
+  db.close();
+  return entry;
+}
+
+async function listarProyectos() {
+  const db = await openProjectDB();
+  const all = await new Promise((res, rej) => {
+    const tx = db.transaction(DB_STORE, 'readonly');
+    const req = tx.objectStore(DB_STORE).getAll();
+    req.onsuccess = () => res(req.result || []);
+    req.onerror = () => rej(req.error);
+  });
+  db.close();
+  return all.sort((a, b) => (b.fecha || '').localeCompare(a.fecha || ''));
+}
+
+async function borrarProyecto(id) {
+  const db = await openProjectDB();
+  await new Promise((res, rej) => {
+    const tx = db.transaction(DB_STORE, 'readwrite');
+    tx.objectStore(DB_STORE).delete(id);
+    tx.oncomplete = res; tx.onerror = () => rej(tx.error);
+  });
+  db.close();
+}
+
+// Crea entrada cuando se carga un nuevo plano (con imagen base + thumbnail)
+async function crearProyectoActual() {
+  if (!state.bgLoaded) return;
+  const canvas = document.getElementById('bgCanvas');
+  // Imagen base como JPEG ligero
+  const imgBlob = await new Promise(r => canvas.toBlob(r, 'image/jpeg', 0.85));
+  // Thumbnail 240px ancho
+  const t = document.createElement('canvas');
+  const ratio = canvas.height / canvas.width;
+  t.width = 240; t.height = Math.max(60, Math.round(240 * ratio));
+  t.getContext('2d').drawImage(canvas, 0, 0, t.width, t.height);
+  const thumbBlob = await new Promise(r => t.toBlob(r, 'image/jpeg', 0.7));
+  const id = 'p' + Date.now();
+  state.currentProjectId = id;
+  await _putProject({
+    id, fecha: new Date().toISOString(),
+    title: getTitle(),
+    bgWidth: state.bgWidth, bgHeight: state.bgHeight,
+    imgBlob, thumbBlob,
+    elements: state.elements,
+    project: { ...project },
+    activeCableId: state.activeCableId
+  });
+}
+
+// Actualiza solo metadata + elements del proyecto actual (no la imagen)
+let _autoSaveTimer = null;
+function autoGuardar() {
+  if (!state.currentProjectId || !state.bgLoaded) return;
+  clearTimeout(_autoSaveTimer);
+  _autoSaveTimer = setTimeout(async () => {
+    try {
+      const existing = await _getProject(state.currentProjectId);
+      if (!existing) return;
+      existing.title = getTitle();
+      existing.fecha = new Date().toISOString();
+      existing.elements = state.elements;
+      existing.project = { ...project };
+      existing.activeCableId = state.activeCableId;
+      await _putProject(existing);
+    } catch(e) { console.warn('autoGuardar:', e); }
+  }, 1500);
+}
+
+async function abrirProyecto(id) {
+  const entry = await _getProject(id);
+  if (!entry) { toast('No se encontró el proyecto'); return; }
+  const img = new Image();
+  img.onload = () => {
+    state._cargandoProyectoGuardado = true;
+    renderToCanvas(img);
+    state.elements = entry.elements || [];
+    state.activeCableId = entry.activeCableId || null;
+    state.currentProjectId = entry.id;
+    Object.assign(project, entry.project || {});
+    syncProjectToUI();
+    redraw();
+    closePanel('projectsPanel');
+    toast('Abierto: ' + entry.title);
+  };
+  img.src = URL.createObjectURL(entry.imgBlob);
+}
+
+// Pinta la lista de proyectos en el panel
+async function refrescarPanelProyectos() {
+  const cont = document.getElementById('projectsList');
+  cont.innerHTML = '<div style="color:#6b7280;font-size:12px">Cargando...</div>';
+  try {
+    const list = await listarProyectos();
+    if (list.length === 0) {
+      cont.innerHTML = '<div style="color:#6b7280;font-size:12px;padding:10px">Aún no hay proyectos guardados. Carga un plano y se guardará automáticamente.</div>';
+      return;
+    }
+    cont.innerHTML = '';
+    list.forEach(p => {
+      const row = document.createElement('div');
+      row.style.cssText = 'display:flex;gap:10px;padding:8px;border-radius:6px;background:#1f2530;margin-bottom:6px;align-items:center;cursor:pointer';
+      const img = document.createElement('img');
+      img.src = URL.createObjectURL(p.thumbBlob);
+      img.style.cssText = 'width:80px;height:auto;max-height:60px;object-fit:cover;border-radius:3px;background:#fff';
+      const info = document.createElement('div');
+      info.style.cssText = 'flex:1;overflow:hidden;min-width:0';
+      const fechaTxt = new Date(p.fecha).toLocaleString('es-ES', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' });
+      const isActive = p.id === state.currentProjectId ? ' <span style="color:#22c55e;font-size:10px">● actual</span>' : '';
+      info.innerHTML = `<div style="font-weight:600;font-size:13px;color:#e5e7eb;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${p.title || 'Sin título'}${isActive}</div>
+        <div style="font-size:10px;color:#9ca3af;margin-top:2px">${fechaTxt} · ${(p.elements||[]).length} elementos</div>`;
+      const btnDel = document.createElement('button');
+      btnDel.textContent = '🗑';
+      btnDel.style.cssText = 'background:#7f1d1d;color:#fecaca;border:none;padding:6px 8px;border-radius:4px;cursor:pointer;font-size:14px';
+      btnDel.onclick = async (e) => {
+        e.stopPropagation();
+        if (!confirm('¿Borrar "' + (p.title || 'sin título') + '"? No se puede deshacer.')) return;
+        await borrarProyecto(p.id);
+        if (state.currentProjectId === p.id) state.currentProjectId = null;
+        refrescarPanelProyectos();
+        toast('Borrado');
+      };
+      row.onclick = () => abrirProyecto(p.id);
+      row.appendChild(img); row.appendChild(info); row.appendChild(btnDel);
+      cont.appendChild(row);
+    });
+  } catch (e) {
+    cont.innerHTML = '<div style="color:#ef4444;font-size:12px">Error: ' + e.message + '</div>';
+  }
+}
+
+function syncProjectToUI() {
+  ['prjTitle','prjName','prjSuc','prjEmpalmes','prjFecha','prjCableText'].forEach(id => {
+    const k = id.slice(3,4).toLowerCase() + id.slice(4);
+    const el = document.getElementById(id);
+    if (el) el.value = project[k] || '';
+  });
+  if (document.getElementById('prjAddCajetin')) document.getElementById('prjAddCajetin').checked = !!project.addCajetin;
+}
 
 // ============================================================
 // INIT
