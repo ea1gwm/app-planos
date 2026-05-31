@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no, viewport-fit=cover">
-<title>Editor de Planos DIGI v5.3</title>
+<title>Editor de Planos DIGI v5.4</title>
 <meta name="theme-color" content="#1e2a3a">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -189,7 +189,7 @@
 <div class="app">
 
   <div class="topbar">
-    <span class="logo">DIGI<span class="ver">v5.3</span></span>
+    <span class="logo">DIGI<span class="ver">v5.4</span></span>
     <span class="spacer"></span>
     <button id="btnUndo" class="undo" title="Deshacer">↶</button>
     <button id="btnSettings" title="Ajustes">⚙️</button>
@@ -205,7 +205,7 @@
       <div class="logo-wrap">
         <div class="logo-main">DIGI</div>
         <div class="logo-sub">Editor de Planos</div>
-        <div class="logo-ver">v5.3</div>
+        <div class="logo-ver">v5.4</div>
       </div>
       <div class="cable-line"></div>
       <p>Carga una imagen o PDF del plano base para comenzar</p>
@@ -804,7 +804,7 @@ const PATRONES_PDF = [
   { id: 'cr',       regex: /^CR\b/i,           color: '#fef08a', etiqueta: 'CR' },
   { id: 'empalme',  regex: /^0[1-9]E/i,        color: '#fb923c', etiqueta: 'Empalme' },
   { id: 'cto',      regex: /^\d{6}$/,           color: '#fef08a', etiqueta: 'CTO' },
-  { id: 'poste',    regex: /^L\d{5,}/i,         color: '#fef08a', etiqueta: 'Poste' },
+  { id: 'poste',    regex: /^L\s?\d{3,}/i,      color: '#fef08a', etiqueta: 'Poste' },
 ];
 
 // Fusiona la palabra que coincide con las palabras vecinas de la MISMA línea
@@ -819,11 +819,13 @@ function cajaEtiquetaCompleta(match, todas) {
     for (const w of todas) {
       if (usados.has(w) || w.x0 === undefined) continue;
       const centroY = (w.y0 + w.y1) / 2;
-      const mismaLinea = centroY >= y0 - alturaLinea*0.5 && centroY <= y1 + alturaLinea*0.5;
+      // Tolerancias más amplias: el OCR a menudo desalinea palabras de la misma línea
+      const mismaLinea = centroY >= y0 - alturaLinea*0.8 && centroY <= y1 + alturaLinea*0.8;
       const huecoDer = w.x0 - x1;          // hueco a la derecha del grupo
       const huecoIzq = x0 - w.x1;          // hueco a la izquierda del grupo
-      const cerca = (huecoDer >= -2 && huecoDer < alturaLinea*1.8) ||
-                    (huecoIzq >= -2 && huecoIzq < alturaLinea*1.8);
+      const maxGap = alturaLinea * 3.5;    // hasta ~3 letras de hueco entre palabras
+      const cerca = (huecoDer >= -3 && huecoDer < maxGap) ||
+                    (huecoIzq >= -3 && huecoIzq < maxGap);
       if (mismaLinea && cerca) {
         x0 = Math.min(x0, w.x0); y0 = Math.min(y0, w.y0);
         x1 = Math.max(x1, w.x1); y1 = Math.max(y1, w.y1);
@@ -1679,6 +1681,7 @@ function openElemPopup(el, evt) {
       btn.style.cssText = `padding:5px 8px;border-radius:4px;background:#1f2530;color:${ct.color};font-size:10px;font-weight:800;border:1px solid ${ct.color};outline:${el.textColor===ct.color?'2px solid #fbbf24':'none'};`;
       btn.onclick = () => {
         popupElement.textColor = (popupElement.textColor === ct.color) ? null : ct.color;
+        popupElement._textColorManual = true;
         tcWrap.querySelectorAll('.text-color-cable-btn').forEach(x => x.style.outline = (x.dataset.color === (popupElement.textColor||'')) ? '2px solid #fbbf24' : 'none');
         document.querySelectorAll('.text-color-btn').forEach(x => x.style.outline = (x.dataset.color === (popupElement.textColor || '')) ? '2px solid #fbbf24' : 'none');
         redraw();
@@ -1784,18 +1787,25 @@ document.getElementById('popupDelNear').onclick = () => {
 document.getElementById('popupLabel').addEventListener('input', (e) => {
   if (!popupElement) return;
   if (popupElement.type === 'tramo') { e.target.value = e.target.value.toUpperCase(); return; }
-  // Auto-detección de color de cable al escribir texto (ej "12FO COMEL" → azul)
-  if (popupElement.type === 'text' && !popupElement._bgManual) {
-    const auto = colorCablePorTexto(e.target.value);
-    if (auto) {
-      popupElement.bgSolid = auto;
-      popupElement.bgHighlight = null;
-      const ccWrap = document.getElementById('popupCableColors');
-      ccWrap.querySelectorAll('.bg-solid-btn').forEach(x => x.style.outline = (x.dataset.color === auto) ? '2px solid #fbbf24' : 'none');
-      document.querySelectorAll('.bg-color-btn').forEach(x => x.style.outline = 'none');
-      redraw();
-    }
+  if (popupElement.type !== 'text') return;
+  // Auto: si el texto empieza con código de cable (12FO, 24KP...) → texto en color cable + negrita.
+  // Si lo quitas → vuelve a normal. Cada control se respeta si el usuario lo cambió a mano.
+  const auto = colorCablePorTexto(e.target.value);
+  if (!popupElement._textColorManual) {
+    popupElement.textColor = auto || null;
+    document.querySelectorAll('.text-color-btn').forEach(x => x.style.outline = (x.dataset.color === (popupElement.textColor||'')) ? '2px solid #fbbf24' : 'none');
+    document.getElementById('popupTextCableColors').querySelectorAll('.text-color-cable-btn').forEach(x => x.style.outline = (x.dataset.color === (popupElement.textColor||'')) ? '2px solid #fbbf24' : 'none');
   }
+  if (!popupElement._boldManual) {
+    popupElement.bold = !!auto;
+    document.getElementById('popupBold').checked = !!auto;
+  }
+  redraw();
+});
+
+// Marcar bold como manual cuando el usuario lo cambia
+document.getElementById('popupBold').addEventListener('change', () => {
+  if (popupElement) popupElement._boldManual = true;
 });
 
 // Bg color buttons for text (resaltado rotulador)
@@ -1817,11 +1827,18 @@ document.querySelectorAll('.bg-color-btn').forEach(b => {
 document.querySelectorAll('.text-color-btn').forEach(b => {
   b.addEventListener('click', () => {
     if (!popupElement || popupElement.type !== 'text') return;
-    popupElement.textColor = b.dataset.color || null;
+    // "Auto" (dataset.color vacío) → liberar el manual y reaplicar auto desde el texto actual
+    if (!b.dataset.color) {
+      popupElement._textColorManual = false;
+      popupElement.textColor = colorCablePorTexto(popupElement.text || '') || null;
+    } else {
+      popupElement.textColor = b.dataset.color;
+      popupElement._textColorManual = true;
+    }
     document.querySelectorAll('.text-color-btn').forEach(x => {
-      x.style.outline = (x.dataset.color === (popupElement.textColor || '')) ? '2px solid #fbbf24' : 'none';
+      x.style.outline = (x.dataset.color === (popupElement.textColor || '') || (!x.dataset.color && !popupElement._textColorManual)) ? '2px solid #fbbf24' : 'none';
     });
-    document.getElementById('popupTextCableColors').querySelectorAll('.text-color-cable-btn').forEach(x => x.style.outline = 'none');
+    document.getElementById('popupTextCableColors').querySelectorAll('.text-color-cable-btn').forEach(x => x.style.outline = (x.dataset.color === (popupElement.textColor || '')) ? '2px solid #fbbf24' : 'none');
     redraw();
   });
 });
