@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no, viewport-fit=cover">
-<title>Editor de Planos DIGI v5.9.1</title>
+<title>Editor de Planos DIGI v5.9.2</title>
 <meta name="theme-color" content="#1e2a3a">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -195,7 +195,7 @@
 <div class="app">
 
   <div class="topbar">
-    <span class="logo">DIGI<span class="ver">v5.9.1</span></span>
+    <span class="logo">DIGI<span class="ver">v5.9.2</span></span>
     <span class="spacer"></span>
     <button id="btnUndo" class="undo" title="Deshacer">↶</button>
     <button id="btnSettings" title="Ajustes">⚙️</button>
@@ -214,7 +214,7 @@
       <div class="logo-wrap">
         <div class="logo-main">DIGI</div>
         <div class="logo-sub">Editor de Planos</div>
-        <div class="logo-ver">v5.9.1</div>
+        <div class="logo-ver">v5.9.2</div>
       </div>
       <div class="cable-line"></div>
       <p>Carga una imagen o PDF del plano base para comenzar</p>
@@ -388,11 +388,20 @@
 <!-- PROJECT PANEL -->
 <div class="panel" id="projectsPanel">
   <button class="close" onclick="closePanel('projectsPanel')">✕</button>
-  <h2>📁 Proyectos recientes</h2>
+  <h2>🕒 Proyectos recientes</h2>
   <div style="font-size:11px;color:#9ca3af;margin-bottom:10px;line-height:1.4">
-    Los planos se guardan automáticamente en este navegador mientras trabajas. Toca uno para reabrirlo.
+    Se guardan automáticamente en este navegador mientras trabajas. Toca uno para reabrirlo.
   </div>
   <div id="projectsList"></div>
+  <h2 style="margin-top:18px;">💼 Proyecto editable (archivo)</h2>
+  <div style="font-size:11px;color:#9ca3af;margin-bottom:10px;line-height:1.4">
+    Guarda el plano + todas las anotaciones como un archivo <b>.dproject</b> para enviar a otro móvil o conservar para otro día. Al cargarlo todo sigue siendo editable.
+  </div>
+  <div style="display:flex;gap:8px;flex-wrap:wrap;">
+    <button onclick="exportarEditable()" style="flex:1;padding:10px;border-radius:6px;background:#047857;color:#d1fae5;font-weight:600;border:none;cursor:pointer;font-size:12px;">📤 Exportar editable</button>
+    <button onclick="document.getElementById('fileInputEditable').click()" style="flex:1;padding:10px;border-radius:6px;background:#1e40af;color:#dbeafe;font-weight:600;border:none;cursor:pointer;font-size:12px;">📥 Cargar editable</button>
+    <input type="file" id="fileInputEditable" accept=".dproject,application/json" style="display:none">
+  </div>
 </div>
 
 <div class="panel" id="projectPanel">
@@ -469,6 +478,8 @@ const LONG_PRESS_MS = 600;
 
 // Compact toolbar layout (most-used first)
 const COMPACT_TOOLS = [
+  { type: 'pan' },
+  { type: 'divider' },
   { type: 'cable', cable: '12KP' },
   { type: 'cable', cable: '24KP' },
   { type: 'cable', cable: '48KP' },
@@ -562,6 +573,11 @@ function buildToolbar() {
       b.style.background = '#2563eb';
       b.style.color = 'white';
       b.onclick = openDrawer;
+    } else if (c.type === 'pan') {
+      b.innerHTML = `🖐 Mover`;
+      b.title = 'Sin herramienta: tocar el plano solo selecciona/mueve, no crea elementos';
+      b.dataset.tool = '__pan__';
+      b.onclick = () => { state.tool = null; state.toolData = {}; if (state.pendingPath) finishPath(); updateToolUI(); toast('Modo mover'); };
     }
     tc.appendChild(b);
   });
@@ -644,7 +660,11 @@ function selectTool(tool, data) {
 
 function updateToolUI() {
   document.querySelectorAll('.tool[data-tool]').forEach(b => b.classList.remove('active'));
-  if (!state.tool) return;
+  if (!state.tool) {
+    // Sin herramienta: marcar el botón "Mover" como activo
+    document.querySelectorAll('.tool[data-tool="__pan__"]').forEach(b => b.classList.add('active'));
+    return;
+  }
   let key = state.tool;
   if (state.tool === 'cable') key = 'cable-' + state.toolData.cableType;
   else if (state.tool === 'hl-cable') key = 'hl-cable-' + state.toolData.cableTypeRef;
@@ -2006,6 +2026,14 @@ async function loadPdf(file) {
   renderToCanvas(c);
 }
 function renderToCanvas(source) {
+  // Limpiar el estado anterior si no estamos reabriendo un proyecto guardado
+  if (!state._cargandoProyectoGuardado) {
+    state.elements = [];
+    state.activeCableId = null;
+    state.selectedId = null;
+    state.pendingPath = null;
+    state.history = [];
+  }
   const c = document.getElementById('bgCanvas');
   c.width = source.width; c.height = source.height;
   c.getContext('2d').drawImage(source, 0, 0);
@@ -2115,6 +2143,7 @@ stageEl.addEventListener('contextmenu', (e) => e.preventDefault());
 document.getElementById('btnSettings').onclick = () => openPanel('settingsPanel');
 document.getElementById('btnProject').onclick = () => openPanel('projectPanel');
 document.getElementById('btnRecientes').onclick = () => { openPanel('projectsPanel'); refrescarPanelProyectos(); };
+document.getElementById('fileInputEditable').onchange = (e) => { const f = e.target.files[0]; if (f) importarEditable(f); e.target.value = ''; };
 function openPanel(id) {
   document.querySelectorAll('.panel').forEach(p => p.classList.remove('open'));
   document.getElementById(id).classList.add('open');
@@ -2185,18 +2214,33 @@ async function generatePlanBlob(mime = 'image/png', quality) {
 function _baseFilename() {
   return (getTitle() || 'plano').replace(/[^\w\s\-\.]/g, '_').replace(/\s+/g, '_');
 }
-async function descargar(mime, ext, quality) {
-  if (!state.bgLoaded) { toast('Carga un plano primero'); return; }
-  const blob = await generatePlanBlob(mime, quality);
-  const fname = _baseFilename() + '.' + ext;
+// Intenta abrir el menú "Enviar a..." del sistema (WhatsApp, Drive, Guardar archivos...)
+// Si no está disponible, cae a descarga directa.
+async function compartirOdescargar(blob, fname, mime) {
+  const file = new File([blob], fname, { type: mime });
+  if (navigator.canShare && navigator.canShare({ files: [file] })) {
+    try {
+      await navigator.share({ files: [file], title: getTitle() });
+      toast('Compartido');
+      return;
+    } catch (e) {
+      if (e.name === 'AbortError') return; // cancelado
+      console.warn('share fallback:', e);
+    }
+  }
   const a = document.createElement('a');
   a.download = fname;
   a.href = URL.createObjectURL(blob);
   a.click();
   toast('Descargado: ' + fname);
 }
-document.getElementById('btnExport').onclick    = () => descargar('image/png', 'png');
-document.getElementById('btnExportJpg').onclick = () => descargar('image/jpeg', 'jpg', 0.92);
+async function exportarImagen(mime, ext, quality) {
+  if (!state.bgLoaded) { toast('Carga un plano primero'); return; }
+  const blob = await generatePlanBlob(mime, quality);
+  await compartirOdescargar(blob, _baseFilename() + '.' + ext, mime);
+}
+document.getElementById('btnExport').onclick    = () => exportarImagen('image/png', 'png');
+document.getElementById('btnExportJpg').onclick = () => exportarImagen('image/jpeg', 'jpg', 0.92);
 
 // Descarga PDF (carga jsPDF de CDN solo la primera vez)
 async function _cargarJsPDF() {
@@ -2229,8 +2273,8 @@ document.getElementById('btnExportPdf').onclick = async () => {
     if (aspect > maxW / maxH) { iw = maxW; ih = maxW / aspect; }
     else                       { ih = maxH; iw = maxH * aspect; }
     pdf.addImage(dataUrl, 'JPEG', (pageW - iw) / 2, (pageH - ih) / 2, iw, ih);
-    pdf.save(_baseFilename() + '.pdf');
-    toast('Descargado PDF');
+    const pdfBlob = pdf.output('blob');
+    await compartirOdescargar(pdfBlob, _baseFilename() + '.pdf', 'application/pdf');
   } catch (e) {
     toast('Error PDF: ' + e.message);
   }
@@ -2491,6 +2535,55 @@ function syncProjectToUI() {
   });
   if (document.getElementById('prjAddCajetin')) document.getElementById('prjAddCajetin').checked = !!project.addCajetin;
 }
+
+// Exportar el proyecto como archivo .dproject (JSON con imagen embebida)
+async function exportarEditable() {
+  if (!state.bgLoaded) { toast('Carga un plano primero'); return; }
+  const canvas = document.getElementById('bgCanvas');
+  const imgDataUrl = canvas.toDataURL('image/jpeg', 0.85);
+  const data = {
+    version: 1, type: 'digi-planos-project',
+    title: getTitle(), fecha: new Date().toISOString(),
+    bgWidth: state.bgWidth, bgHeight: state.bgHeight,
+    elements: state.elements,
+    activeCableId: state.activeCableId,
+    project: project,
+    imgDataUrl
+  };
+  const blob = new Blob([JSON.stringify(data)], { type: 'application/json' });
+  const fname = _baseFilename() + '.dproject';
+  await compartirOdescargar(blob, fname, 'application/json');
+}
+
+// Importar un archivo .dproject — restaura plano + anotaciones editables
+async function importarEditable(file) {
+  try {
+    const text = await file.text();
+    const data = JSON.parse(text);
+    if (data.type !== 'digi-planos-project') throw new Error('Archivo no reconocido');
+    const img = new Image();
+    img.onload = () => {
+      state._cargandoProyectoGuardado = true;
+      renderToCanvas(img);
+      state.elements = data.elements || [];
+      state.activeCableId = data.activeCableId || null;
+      state.currentProjectId = null;
+      Object.assign(project, data.project || {});
+      syncProjectToUI();
+      redraw();
+      // Crear nuevo proyecto en IndexedDB para auto-guardado posterior
+      setTimeout(() => crearProyectoActual(), 200);
+      closePanel('projectsPanel');
+      toast('Importado: ' + (data.title || 'sin título'));
+    };
+    img.onerror = () => toast('Error al cargar la imagen del archivo');
+    img.src = data.imgDataUrl;
+  } catch (e) {
+    toast('Error: ' + e.message);
+  }
+}
+window.exportarEditable = exportarEditable;
+window.importarEditable = importarEditable;
 
 // ============================================================
 // INIT
