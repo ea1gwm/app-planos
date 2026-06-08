@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no, viewport-fit=cover">
-<title>Editor de Planos DIGI v5.9.2</title>
+<title>Editor de Planos DIGI v5.9.3</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
@@ -188,7 +188,7 @@
 <div class="app">
 
   <div class="topbar">
-    <span class="logo">DIGI<span class="ver">v5.9.2</span></span>
+    <span class="logo">DIGI<span class="ver">v5.9.3</span></span>
     <span class="spacer"></span>
     <button id="btnUndo" class="undo" title="Deshacer">↶</button>
     <button id="btnSettings" title="Ajustes">⚙️</button>
@@ -207,7 +207,7 @@
       <div class="logo-wrap">
         <div class="logo-main">DIGI</div>
         <div class="logo-sub">Editor de Planos</div>
-        <div class="logo-ver">v5.9.2</div>
+        <div class="logo-ver">v5.9.3</div>
       </div>
       <div class="cable-line"></div>
       <p>Carga una imagen o PDF del plano base para comenzar</p>
@@ -382,8 +382,14 @@
 <div class="panel" id="projectsPanel">
   <button class="close" onclick="closePanel('projectsPanel')">✕</button>
   <h2>🕒 Proyectos recientes</h2>
-  <div style="font-size:11px;color:#9ca3af;margin-bottom:10px;line-height:1.4">
+  <div style="font-size:11px;color:#9ca3af;margin-bottom:8px;line-height:1.4">
     Se guardan automáticamente en este navegador mientras trabajas. Toca uno para reabrirlo.
+  </div>
+  <div id="projectsFilters" style="display:flex;gap:5px;flex-wrap:wrap;margin-bottom:10px;">
+    <button class="filtro-btn" data-filtro="todos" style="flex:1;min-width:64px;padding:7px 4px;border-radius:6px;border:1px solid #2a3140;background:#2563eb;color:#fff;font-size:11px;font-weight:600;cursor:pointer;">Todos</button>
+    <button class="filtro-btn" data-filtro="curso" style="flex:1;min-width:64px;padding:7px 4px;border-radius:6px;border:1px solid #2a3140;background:#1f2530;color:#e5e7eb;font-size:11px;font-weight:600;cursor:pointer;">En curso</button>
+    <button class="filtro-btn" data-filtro="terminado" style="flex:1;min-width:64px;padding:7px 4px;border-radius:6px;border:1px solid #2a3140;background:#1f2530;color:#e5e7eb;font-size:11px;font-weight:600;cursor:pointer;">Pend. enviar</button>
+    <button class="filtro-btn" data-filtro="enviado" style="flex:1;min-width:64px;padding:7px 4px;border-radius:6px;border:1px solid #2a3140;background:#1f2530;color:#e5e7eb;font-size:11px;font-weight:600;cursor:pointer;">Enviado</button>
   </div>
   <div id="projectsList"></div>
   <h2 style="margin-top:18px;">💼 Proyecto editable (archivo)</h2>
@@ -2408,12 +2414,30 @@ async function crearProyectoActual() {
   await _putProject({
     id, fecha: new Date().toISOString(),
     title: getTitle(),
+    estado: 'recibido', alias: '', notas: '',
     bgWidth: state.bgWidth, bgHeight: state.bgHeight,
     imgBlob, thumbBlob,
     elements: state.elements,
     project: { ...project },
     activeCableId: state.activeCableId
   });
+}
+
+// Estados y sus colores/etiquetas
+const ESTADOS = {
+  recibido:  { label: 'Recibido',  color: '#6b7280' },
+  curso:     { label: 'En curso',  color: '#2563eb' },
+  terminado: { label: 'Terminado', color: '#d97706' },
+  enviado:   { label: 'Enviado',   color: '#16a34a' },
+};
+let _filtroProyectos = 'todos';
+
+// Cambia un campo del proyecto en IndexedDB
+async function actualizarCampoProyecto(id, campo, valor) {
+  const e = await _getProject(id);
+  if (!e) return;
+  e[campo] = valor;
+  await _putProject(e);
 }
 let _autoSaveTimer = null;
 function autoGuardar() {
@@ -2453,43 +2477,96 @@ async function abrirProyecto(id) {
 async function refrescarPanelProyectos() {
   const cont = document.getElementById('projectsList');
   cont.innerHTML = '<div style="color:#6b7280;font-size:12px">Cargando...</div>';
+  document.querySelectorAll('.filtro-btn').forEach(b => {
+    const act = b.dataset.filtro === _filtroProyectos;
+    b.style.background = act ? '#2563eb' : '#1f2530';
+    b.style.color = act ? '#fff' : '#e5e7eb';
+  });
   try {
-    const list = await listarProyectos();
+    let list = await listarProyectos();
+    if (_filtroProyectos !== 'todos') {
+      list = list.filter(p => (p.estado || 'recibido') === _filtroProyectos);
+    }
     if (list.length === 0) {
-      cont.innerHTML = '<div style="color:#6b7280;font-size:12px;padding:10px">Aún no hay proyectos guardados. Carga un plano y se guardará automáticamente.</div>';
+      cont.innerHTML = '<div style="color:#6b7280;font-size:12px;padding:10px">' +
+        (_filtroProyectos === 'todos' ? 'Aún no hay proyectos guardados. Carga un plano y se guardará automáticamente.' : 'No hay proyectos en este filtro.') + '</div>';
       return;
     }
     cont.innerHTML = '';
     list.forEach(p => {
-      const row = document.createElement('div');
-      row.style.cssText = 'display:flex;gap:10px;padding:8px;border-radius:6px;background:#1f2530;margin-bottom:6px;align-items:center;cursor:pointer';
+      const est = ESTADOS[p.estado || 'recibido'] || ESTADOS.recibido;
+      const card = document.createElement('div');
+      card.style.cssText = 'padding:8px;border-radius:8px;background:#1f2530;margin-bottom:8px;border-left:4px solid ' + est.color + ';';
+      const top = document.createElement('div');
+      top.style.cssText = 'display:flex;gap:10px;align-items:center;cursor:pointer;';
       const img = document.createElement('img');
       img.src = URL.createObjectURL(p.thumbBlob);
-      img.style.cssText = 'width:80px;height:auto;max-height:60px;object-fit:cover;border-radius:3px;background:#fff';
+      img.style.cssText = 'width:72px;height:auto;max-height:54px;object-fit:cover;border-radius:3px;background:#fff;flex-shrink:0;';
       const info = document.createElement('div');
       info.style.cssText = 'flex:1;overflow:hidden;min-width:0';
       const fechaTxt = new Date(p.fecha).toLocaleString('es-ES', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' });
       const isActive = p.id === state.currentProjectId ? ' <span style="color:#22c55e;font-size:10px">● actual</span>' : '';
-      info.innerHTML = `<div style="font-weight:600;font-size:13px;color:#e5e7eb;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${p.title || 'Sin título'}${isActive}</div>
-        <div style="font-size:10px;color:#9ca3af;margin-top:2px">${fechaTxt} · ${(p.elements||[]).length} elementos</div>`;
-      const btnDel = document.createElement('button');
-      btnDel.textContent = '🗑';
-      btnDel.style.cssText = 'background:#7f1d1d;color:#fecaca;border:none;padding:6px 8px;border-radius:4px;cursor:pointer;font-size:14px';
-      btnDel.onclick = async (e) => {
-        e.stopPropagation();
-        if (!confirm('¿Borrar "' + (p.title || 'sin título') + '"? No se puede deshacer.')) return;
+      const nombreMostrar = p.alias ? p.alias : (p.title || 'Sin título');
+      info.innerHTML = `<div style="font-weight:600;font-size:13px;color:#e5e7eb;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${nombreMostrar}${isActive}</div>
+        ${p.alias ? `<div style="font-size:9px;color:#6b7280;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${p.title||''}</div>` : ''}
+        <div style="margin-top:3px;"><span style="display:inline-block;font-size:9px;font-weight:700;color:#fff;background:${est.color};padding:1px 7px;border-radius:10px;">${est.label}</span>
+        <span style="font-size:10px;color:#9ca3af;margin-left:5px">${fechaTxt}</span></div>
+        ${p.notas ? `<div style="font-size:10px;color:#cbd5e1;margin-top:3px;font-style:italic;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">📝 ${p.notas}</div>` : ''}`;
+      top.appendChild(img); top.appendChild(info);
+      top.onclick = () => abrirProyecto(p.id);
+      card.appendChild(top);
+      const acc = document.createElement('div');
+      acc.style.cssText = 'display:flex;gap:5px;margin-top:7px;flex-wrap:wrap;';
+      const mkBtn = (txt, bg, col, fn) => {
+        const b = document.createElement('button');
+        b.innerHTML = txt;
+        b.style.cssText = `flex:1;min-width:0;padding:6px 4px;border-radius:5px;border:none;background:${bg};color:${col};font-size:11px;font-weight:600;cursor:pointer;white-space:nowrap;`;
+        b.onclick = (e) => { e.stopPropagation(); fn(); };
+        return b;
+      };
+      acc.appendChild(mkBtn('🔄 Estado', '#374151', '#e5e7eb', async () => {
+        const orden = ['recibido','curso','terminado','enviado'];
+        const actual = orden.indexOf(p.estado || 'recibido');
+        const nuevo = orden[(actual + 1) % orden.length];
+        await actualizarCampoProyecto(p.id, 'estado', nuevo);
+        refrescarPanelProyectos();
+        toast('Estado: ' + ESTADOS[nuevo].label);
+      }));
+      acc.appendChild(mkBtn('✅ Enviado', '#065f46', '#d1fae5', async () => {
+        await actualizarCampoProyecto(p.id, 'estado', 'enviado');
+        refrescarPanelProyectos();
+        toast('Marcado como enviado');
+      }));
+      acc.appendChild(mkBtn('✏️ Alias', '#1e3a5f', '#dbeafe', async () => {
+        const v = prompt('Alias para este plano (nombre fácil):', p.alias || '');
+        if (v === null) return;
+        await actualizarCampoProyecto(p.id, 'alias', v.trim());
+        refrescarPanelProyectos();
+      }));
+      acc.appendChild(mkBtn('📝 Nota', '#3f3f46', '#e5e7eb', async () => {
+        const v = prompt('Notas:', p.notas || '');
+        if (v === null) return;
+        await actualizarCampoProyecto(p.id, 'notas', v.trim());
+        refrescarPanelProyectos();
+      }));
+      acc.appendChild(mkBtn('🗑', '#7f1d1d', '#fecaca', async () => {
+        if (!confirm('¿Borrar "' + nombreMostrar + '"? No se puede deshacer.')) return;
         await borrarProyecto(p.id);
         if (state.currentProjectId === p.id) state.currentProjectId = null;
         refrescarPanelProyectos();
         toast('Borrado');
-      };
-      row.onclick = () => abrirProyecto(p.id);
-      row.appendChild(img); row.appendChild(info); row.appendChild(btnDel);
-      cont.appendChild(row);
+      }));
+      card.appendChild(acc);
+      cont.appendChild(card);
     });
   } catch (e) {
     cont.innerHTML = '<div style="color:#ef4444;font-size:12px">Error: ' + e.message + '</div>';
   }
+}
+function _initFiltrosProyectos() {
+  document.querySelectorAll('.filtro-btn').forEach(b => {
+    b.onclick = () => { _filtroProyectos = b.dataset.filtro; refrescarPanelProyectos(); };
+  });
 }
 function syncProjectToUI() {
   ['prjTitle','prjName','prjSuc','prjEmpalmes','prjFecha','prjCableText'].forEach(id => {
@@ -2552,6 +2629,7 @@ buildToolbar();
 syncSettingsToUI();
 syncProjectFromUI();
 updateCalc();
+_initFiltrosProyectos();
 document.getElementById('prjFecha').value = new Date().toISOString().split('T')[0];
 project.fecha = document.getElementById('prjFecha').value;
 </script>
