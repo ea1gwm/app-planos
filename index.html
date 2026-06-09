@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no, viewport-fit=cover">
-<title>Editor de Planos DIGI v6.0</title>
+<title>Editor de Planos DIGI v6.1</title>
 <meta name="theme-color" content="#1e2a3a">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -195,7 +195,7 @@
 <div class="app">
 
   <div class="topbar">
-    <span class="logo">DIGI<span class="ver">v6.0</span></span>
+    <span class="logo">DIGI<span class="ver">v6.1</span></span>
     <span class="spacer"></span>
     <button id="btnUndo" class="undo" title="Deshacer">↶</button>
     <button id="btnSettings" title="Ajustes">⚙️</button>
@@ -215,7 +215,7 @@
       <div class="logo-wrap">
         <div class="logo-main">DIGI</div>
         <div class="logo-sub">Editor de Planos</div>
-        <div class="logo-ver">v6.0</div>
+        <div class="logo-ver">v6.1</div>
       </div>
       <div class="cable-line"></div>
       <p>Carga una imagen o PDF del plano base para comenzar</p>
@@ -2716,7 +2716,8 @@ const DRIVE_SCOPE = 'https://www.googleapis.com/auth/drive.file';
 const DRIVE_ROOT = 'Planos DIGI';
 let _driveToken = null, _driveTokenExp = 0, _driveTokenClient = null, _gisLoaded = false;
 
-function driveClientId() { return (localStorage.getItem('digi_drive_clientid') || '').trim(); }
+const DRIVE_DEFAULT_CLIENTID = '910743268852-6agbsgsv1kmngjf425brk2vkrkn9mvin.apps.googleusercontent.com';
+function driveClientId() { return (localStorage.getItem('digi_drive_clientid') || DRIVE_DEFAULT_CLIENTID).trim(); }
 function driveAutoOn() { return localStorage.getItem('digi_drive_auto') === '1'; }
 function setDriveStatus(txt, color) {
   const el = document.getElementById('driveStatus');
@@ -2856,12 +2857,11 @@ updateCalc();
 _initFiltrosProyectos();
 // Drive: cargar Client ID y preferencias guardadas
 (function initDrive(){
-  const cid = localStorage.getItem('digi_drive_clientid') || '';
   const inp = document.getElementById('setDriveClientId');
-  if (inp) { inp.value = cid; inp.addEventListener('input', () => localStorage.setItem('digi_drive_clientid', inp.value.trim())); }
+  if (inp) { inp.value = driveClientId(); inp.addEventListener('input', () => localStorage.setItem('digi_drive_clientid', inp.value.trim())); }
   const auto = document.getElementById('setDriveAuto');
   if (auto) { auto.checked = driveAutoOn(); auto.addEventListener('change', () => localStorage.setItem('digi_drive_auto', auto.checked ? '1' : '0')); }
-  if (cid && localStorage.getItem('digi_drive_connected') === '1') setDriveStatus('configurado (toca Conectar)', '#9ca3af');
+  if (driveClientId()) setDriveStatus('configurado (toca 🔑 Conectar Drive)', '#9ca3af');
 })();
 document.getElementById('prjFecha').value = new Date().toISOString().split('T')[0];
 project.fecha = document.getElementById('prjFecha').value;
