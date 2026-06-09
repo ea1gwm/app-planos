@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no, viewport-fit=cover">
-<title>Editor de Planos DIGI v6.4</title>
+<title>Editor de Planos DIGI v6.5</title>
 <meta name="theme-color" content="#1e2a3a">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -195,7 +195,7 @@
 <div class="app">
 
   <div class="topbar">
-    <span class="logo">DIGI<span class="ver">v6.4</span></span>
+    <span class="logo">DIGI<span class="ver">v6.5</span></span>
     <span class="spacer"></span>
     <button id="btnUndo" class="undo" title="Deshacer">↶</button>
     <button id="btnSettings" title="Ajustes">⚙️</button>
@@ -215,7 +215,7 @@
       <div class="logo-wrap">
         <div class="logo-main">DIGI</div>
         <div class="logo-sub">Editor de Planos</div>
-        <div class="logo-ver">v6.4</div>
+        <div class="logo-ver">v6.5</div>
       </div>
       <div class="cable-line"></div>
       <p>Carga una imagen o PDF del plano base para comenzar</p>
@@ -2628,6 +2628,7 @@ async function refrescarPanelProyectos() {
         await actualizarCampoProyecto(p.id, 'estado', nuevo);
         refrescarPanelProyectos();
         toast('Estado: ' + ESTADOS[nuevo].label);
+        _syncProyectoSiConectado(p.id); // sube el cambio de estado a la nube
         if (driveAutoOn() && p.id === state.currentProjectId) subirPlanoADrive(ESTADOS[nuevo].label, true);
       };
       acc.appendChild(sel);
@@ -2641,6 +2642,7 @@ async function refrescarPanelProyectos() {
           const ai = document.getElementById('prjAlias'); if (ai) ai.value = v.trim();
         }
         refrescarPanelProyectos();
+        _syncProyectoSiConectado(p.id);
       }));
       // Notas
       acc.appendChild(mkBtn('📝 Nota', '#3f3f46', '#e5e7eb', async () => {
@@ -2648,6 +2650,7 @@ async function refrescarPanelProyectos() {
         if (v === null) return;
         await actualizarCampoProyecto(p.id, 'notas', v.trim());
         refrescarPanelProyectos();
+        _syncProyectoSiConectado(p.id);
       }));
       // Borrar
       acc.appendChild(mkBtn('🗑', '#7f1d1d', '#fecaca', async () => {
@@ -2831,13 +2834,22 @@ async function driveConectar() {
   if (!cid) { toast('Pega primero el Client ID'); return; }
   try {
     setDriveStatus('conectando...', '#fbbf24');
-    await _driveGetToken(true);
+    // Si ya autorizó antes, intenta silencioso; si no, pide consentimiento
+    const yaAutorizo = localStorage.getItem('digi_drive_connected') === '1';
+    await _driveGetToken(!yaAutorizo);
     setDriveStatus('conectado ✓', '#22c55e');
     toast('Drive conectado');
   } catch (e) {
     setDriveStatus('error: ' + e.message, '#ef4444');
     toast('Error Drive: ' + e.message);
   }
+}
+
+// Reconexión silenciosa al abrir la app (si ya autorizó en este navegador)
+async function driveReconectarSilencioso() {
+  if (!driveClientId() || localStorage.getItem('digi_drive_connected') !== '1') return;
+  try { await _driveGetToken(false); setDriveStatus('conectado ✓', '#22c55e'); }
+  catch (e) { /* silencioso: si falla, el usuario pulsará Conectar */ }
 }
 function driveDesconectar() {
   _driveToken = null; _driveTokenExp = 0;
@@ -2974,7 +2986,7 @@ async function sincronizarConNube() {
 }
 window.sincronizarConNube = sincronizarConNube;
 
-// Auto-sync del proyecto actual a la nube (debounced) tras editar
+// Auto-sync del proyecto actual a la nube (debounced) tras editar el dibujo
 let _nubeSyncTimer = null;
 function autoSyncNube() {
   if (!driveClientId() || localStorage.getItem('digi_drive_connected') !== '1') return;
@@ -2985,6 +2997,14 @@ function autoSyncNube() {
     catch(err) { console.warn('autoSyncNube:', err); }
   }, 12000);
 }
+
+// Sube YA un proyecto concreto a la nube si Drive está conectado (para estado/alias/notas)
+async function _syncProyectoSiConectado(id) {
+  if (!driveClientId() || localStorage.getItem('digi_drive_connected') !== '1') return;
+  try { const e = await _getProject(id); if (e) await subirProyectoNube(e); }
+  catch(err) { console.warn('_syncProyectoSiConectado:', err); }
+}
+window._syncProyectoSiConectado = _syncProyectoSiConectado;
 
 // ============================================================
 // INIT
@@ -3002,6 +3022,8 @@ _initFiltrosProyectos();
   const auto = document.getElementById('setDriveAuto');
   if (auto) { auto.checked = driveAutoOn(); auto.addEventListener('change', () => localStorage.setItem('digi_drive_auto', auto.checked ? '1' : '0')); }
   if (driveClientId()) setDriveStatus('configurado (toca 🔑 Conectar Drive)', '#9ca3af');
+  // Intentar reconectar sin pedir cuenta si ya se autorizó antes
+  setTimeout(() => { if (typeof driveReconectarSilencioso === 'function') driveReconectarSilencioso(); }, 1500);
 })();
 // Campo "Nombre del archivo (alias)" en el panel de proyecto
 (function initAlias(){
@@ -3011,7 +3033,7 @@ _initFiltrosProyectos();
   inp.addEventListener('input', () => {
     state.currentAlias = inp.value;
     clearTimeout(t);
-    t = setTimeout(() => { if (state.currentProjectId) actualizarCampoProyecto(state.currentProjectId, 'alias', inp.value.trim()); }, 600);
+    t = setTimeout(async () => { if (state.currentProjectId) { await actualizarCampoProyecto(state.currentProjectId, 'alias', inp.value.trim()); _syncProyectoSiConectado(state.currentProjectId); } }, 800);
   });
 })();
 document.getElementById('prjFecha').value = new Date().toISOString().split('T')[0];
