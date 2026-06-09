@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no, viewport-fit=cover">
-<title>Editor de Planos DIGI v6.5</title>
+<title>Editor de Planos DIGI v6.6</title>
 <meta name="theme-color" content="#1e2a3a">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -195,7 +195,7 @@
 <div class="app">
 
   <div class="topbar">
-    <span class="logo">DIGI<span class="ver">v6.5</span></span>
+    <span class="logo">DIGI<span class="ver">v6.6</span></span>
     <span class="spacer"></span>
     <button id="btnUndo" class="undo" title="Deshacer">↶</button>
     <button id="btnSettings" title="Ajustes">⚙️</button>
@@ -215,7 +215,7 @@
       <div class="logo-wrap">
         <div class="logo-main">DIGI</div>
         <div class="logo-sub">Editor de Planos</div>
-        <div class="logo-ver">v6.5</div>
+        <div class="logo-ver">v6.6</div>
       </div>
       <div class="cable-line"></div>
       <p>Carga una imagen o PDF del plano base para comenzar</p>
@@ -2510,6 +2510,7 @@ async function actualizarCampoProyecto(id, campo, valor) {
   const e = await _getProject(id);
   if (!e) return;
   e[campo] = valor;
+  e.fecha = new Date().toISOString(); // marca de tiempo para que la sync detecte el cambio
   await _putProject(e);
 }
 
@@ -3022,8 +3023,8 @@ _initFiltrosProyectos();
   const auto = document.getElementById('setDriveAuto');
   if (auto) { auto.checked = driveAutoOn(); auto.addEventListener('change', () => localStorage.setItem('digi_drive_auto', auto.checked ? '1' : '0')); }
   if (driveClientId()) setDriveStatus('configurado (toca 🔑 Conectar Drive)', '#9ca3af');
-  // Intentar reconectar sin pedir cuenta si ya se autorizó antes
-  setTimeout(() => { if (typeof driveReconectarSilencioso === 'function') driveReconectarSilencioso(); }, 1500);
+  // No auto-conectamos al abrir (evita pedir la cuenta cada vez en el móvil).
+  // La sesión se obtiene de forma silenciosa cuando pulsas Sincronizar/Subir.
 })();
 // Campo "Nombre del archivo (alias)" en el panel de proyecto
 (function initAlias(){
