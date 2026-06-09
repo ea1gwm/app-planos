@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no, viewport-fit=cover">
-<title>Editor de Planos DIGI v5.9.3</title>
+<title>Editor de Planos DIGI v6.0</title>
 <meta name="theme-color" content="#1e2a3a">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -195,7 +195,7 @@
 <div class="app">
 
   <div class="topbar">
-    <span class="logo">DIGI<span class="ver">v5.9.3</span></span>
+    <span class="logo">DIGI<span class="ver">v6.0</span></span>
     <span class="spacer"></span>
     <button id="btnUndo" class="undo" title="Deshacer">↶</button>
     <button id="btnSettings" title="Ajustes">⚙️</button>
@@ -206,6 +206,7 @@
     <button id="btnExport" title="Descargar PNG (calidad máxima)">💾PNG</button>
     <button id="btnExportJpg" title="Descargar JPG (más ligero)">💾JPG</button>
     <button id="btnExportPdf" title="Descargar PDF (para subir al sistema)">💾PDF</button>
+    <button id="btnDrive" title="Subir a Google Drive">☁️</button>
     <button id="btnShare" title="Compartir (JPG)" style="display:none">📤</button>
   </div>
 
@@ -214,7 +215,7 @@
       <div class="logo-wrap">
         <div class="logo-main">DIGI</div>
         <div class="logo-sub">Editor de Planos</div>
-        <div class="logo-ver">v5.9.3</div>
+        <div class="logo-ver">v6.0</div>
       </div>
       <div class="cable-line"></div>
       <p>Carga una imagen o PDF del plano base para comenzar</p>
@@ -382,6 +383,24 @@
   <div class="field">
     <label>Grapeo ARQ (m)</label>
     <input type="number" id="setGrapeoArq" value="3">
+  </div>
+
+  <h2 style="margin-top:20px;">☁️ Google Drive</h2>
+  <div style="font-size:11px;color:#9ca3af;margin-bottom:8px;line-height:1.4">
+    Sube los planos a carpetas <b>Planos DIGI / Recibido · En curso · Terminado · Enviado</b> en tu Drive, accesibles desde el PC.
+  </div>
+  <div class="field">
+    <label>Client ID de Google (OAuth web)</label>
+    <input type="text" id="setDriveClientId" placeholder="xxxxx.apps.googleusercontent.com">
+  </div>
+  <div id="driveStatus" style="font-size:11px;color:#9ca3af;margin-bottom:8px;">Estado: sin conectar</div>
+  <div style="display:flex;gap:8px;flex-wrap:wrap;">
+    <button onclick="driveConectar()" style="flex:1;min-width:120px;padding:9px;border-radius:6px;background:#2563eb;color:#fff;font-weight:600;border:none;cursor:pointer;font-size:12px;">🔑 Conectar Drive</button>
+    <button onclick="driveDesconectar()" style="flex:1;min-width:120px;padding:9px;border-radius:6px;background:#1f2530;color:#e5e7eb;font-weight:600;border:none;cursor:pointer;font-size:12px;">Desconectar</button>
+  </div>
+  <div class="field check" style="margin-top:10px;">
+    <input type="checkbox" id="setDriveAuto">
+    <label for="setDriveAuto">Subir a Drive automáticamente al cambiar estado</label>
   </div>
 </div>
 
@@ -2247,6 +2266,16 @@ async function exportarImagen(mime, ext, quality) {
 }
 document.getElementById('btnExport').onclick    = () => exportarImagen('image/png', 'png');
 document.getElementById('btnExportJpg').onclick = () => exportarImagen('image/jpeg', 'jpg', 0.92);
+document.getElementById('btnDrive').onclick = async () => {
+  if (!driveClientId()) { toast('Configura Drive en ⚙️ Ajustes'); openPanel('settingsPanel'); return; }
+  // Carpeta según el estado del proyecto actual (o "En curso" por defecto)
+  let estadoLabel = ESTADOS.curso.label;
+  if (state.currentProjectId) {
+    const p = await _getProject(state.currentProjectId);
+    if (p && ESTADOS[p.estado]) estadoLabel = ESTADOS[p.estado].label;
+  }
+  await subirPlanoADrive(estadoLabel, false);
+};
 
 // Descarga PDF (carga jsPDF de CDN solo la primera vez)
 async function _cargarJsPDF() {
@@ -2259,27 +2288,31 @@ async function _cargarJsPDF() {
     document.head.appendChild(s);
   });
 }
+// Genera el blob del PDF (A4, auto-orientación). Reutilizable por descarga y Drive.
+async function generarPdfBlob() {
+  await _cargarJsPDF();
+  const blob = await generatePlanBlob('image/jpeg', 0.92);
+  const dataUrl = await new Promise(r => { const fr = new FileReader(); fr.onload = () => r(fr.result); fr.readAsDataURL(blob); });
+  const img = await new Promise((r, j) => { const i = new Image(); i.onload = () => r(i); i.onerror = j; i.src = dataUrl; });
+  const aspect = img.width / img.height;
+  const orientation = aspect > 1 ? 'landscape' : 'portrait';
+  const { jsPDF } = window.jspdf;
+  const pdf = new jsPDF({ orientation, unit: 'mm', format: 'a4' });
+  const pageW = pdf.internal.pageSize.getWidth();
+  const pageH = pdf.internal.pageSize.getHeight();
+  const margin = 5;
+  const maxW = pageW - 2*margin, maxH = pageH - 2*margin;
+  let iw, ih;
+  if (aspect > maxW / maxH) { iw = maxW; ih = maxW / aspect; }
+  else                       { ih = maxH; iw = maxH * aspect; }
+  pdf.addImage(dataUrl, 'JPEG', (pageW - iw) / 2, (pageH - ih) / 2, iw, ih);
+  return pdf.output('blob');
+}
 document.getElementById('btnExportPdf').onclick = async () => {
   if (!state.bgLoaded) { toast('Carga un plano primero'); return; }
   try {
-    await _cargarJsPDF();
     toast('Generando PDF...');
-    const blob = await generatePlanBlob('image/jpeg', 0.92);
-    const dataUrl = await new Promise(r => { const fr = new FileReader(); fr.onload = () => r(fr.result); fr.readAsDataURL(blob); });
-    const img = await new Promise((r, j) => { const i = new Image(); i.onload = () => r(i); i.onerror = j; i.src = dataUrl; });
-    const aspect = img.width / img.height;
-    const orientation = aspect > 1 ? 'landscape' : 'portrait';
-    const { jsPDF } = window.jspdf;
-    const pdf = new jsPDF({ orientation, unit: 'mm', format: 'a4' });
-    const pageW = pdf.internal.pageSize.getWidth();
-    const pageH = pdf.internal.pageSize.getHeight();
-    const margin = 5;
-    const maxW = pageW - 2*margin, maxH = pageH - 2*margin;
-    let iw, ih;
-    if (aspect > maxW / maxH) { iw = maxW; ih = maxW / aspect; }
-    else                       { ih = maxH; iw = maxH * aspect; }
-    pdf.addImage(dataUrl, 'JPEG', (pageW - iw) / 2, (pageH - ih) / 2, iw, ih);
-    const pdfBlob = pdf.output('blob');
+    const pdfBlob = await generarPdfBlob();
     await compartirOdescargar(pdfBlob, _baseFilename() + '.pdf', 'application/pdf');
   } catch (e) {
     toast('Error PDF: ' + e.message);
@@ -2573,12 +2606,14 @@ async function refrescarPanelProyectos() {
         await actualizarCampoProyecto(p.id, 'estado', nuevo);
         refrescarPanelProyectos();
         toast('Estado: ' + ESTADOS[nuevo].label);
+        if (driveAutoOn() && p.id === state.currentProjectId) subirPlanoADrive(ESTADOS[nuevo].label, true);
       }));
       // Marcar enviado
       acc.appendChild(mkBtn('✅ Enviado', '#065f46', '#d1fae5', async () => {
         await actualizarCampoProyecto(p.id, 'estado', 'enviado');
         refrescarPanelProyectos();
         toast('Marcado como enviado');
+        if (driveAutoOn() && p.id === state.currentProjectId) subirPlanoADrive(ESTADOS.enviado.label, true);
       }));
       // Alias
       acc.appendChild(mkBtn('✏️ Alias', '#1e3a5f', '#dbeafe', async () => {
@@ -2675,6 +2710,142 @@ window.exportarEditable = exportarEditable;
 window.importarEditable = importarEditable;
 
 // ============================================================
+// GOOGLE DRIVE (subida a carpetas por estado)
+// ============================================================
+const DRIVE_SCOPE = 'https://www.googleapis.com/auth/drive.file';
+const DRIVE_ROOT = 'Planos DIGI';
+let _driveToken = null, _driveTokenExp = 0, _driveTokenClient = null, _gisLoaded = false;
+
+function driveClientId() { return (localStorage.getItem('digi_drive_clientid') || '').trim(); }
+function driveAutoOn() { return localStorage.getItem('digi_drive_auto') === '1'; }
+function setDriveStatus(txt, color) {
+  const el = document.getElementById('driveStatus');
+  if (el) { el.textContent = 'Estado: ' + txt; el.style.color = color || '#9ca3af'; }
+}
+
+function _cargarGIS() {
+  if (_gisLoaded) return Promise.resolve();
+  return new Promise((res, rej) => {
+    const s = document.createElement('script');
+    s.src = 'https://accounts.google.com/gsi/client';
+    s.onload = () => { _gisLoaded = true; res(); };
+    s.onerror = () => rej(new Error('No se pudo cargar Google Identity'));
+    document.head.appendChild(s);
+  });
+}
+
+// Obtiene un token válido (re-solicita si caducó). interactive=true muestra el diálogo.
+function _driveGetToken(interactive) {
+  return new Promise(async (resolve, reject) => {
+    if (_driveToken && Date.now() < _driveTokenExp - 60000) return resolve(_driveToken);
+    const cid = driveClientId();
+    if (!cid) return reject(new Error('Falta el Client ID en Ajustes'));
+    await _cargarGIS();
+    if (!_driveTokenClient) {
+      _driveTokenClient = google.accounts.oauth2.initTokenClient({
+        client_id: cid, scope: DRIVE_SCOPE,
+        callback: (resp) => {
+          if (resp.error) { reject(new Error(resp.error)); return; }
+          _driveToken = resp.access_token;
+          _driveTokenExp = Date.now() + (resp.expires_in || 3600) * 1000;
+          localStorage.setItem('digi_drive_connected', '1');
+          resolve(_driveToken);
+        }
+      });
+    }
+    _driveTokenClient.requestAccessToken({ prompt: interactive ? 'consent' : '' });
+  });
+}
+
+async function _driveFetch(url, opts = {}) {
+  const token = await _driveGetToken(false);
+  opts.headers = Object.assign({}, opts.headers, { Authorization: 'Bearer ' + token });
+  const r = await fetch(url, opts);
+  if (!r.ok) throw new Error('Drive ' + r.status + ': ' + (await r.text()).slice(0, 120));
+  return r;
+}
+
+// Busca una carpeta por nombre (opcionalmente dentro de un padre); si no existe la crea.
+async function _driveEnsureFolder(name, parentId) {
+  let q = `mimeType='application/vnd.google-apps.folder' and trashed=false and name='${name.replace(/'/g,"\\'")}'`;
+  if (parentId) q += ` and '${parentId}' in parents`;
+  const r = await _driveFetch('https://www.googleapis.com/drive/v3/files?q=' + encodeURIComponent(q) + '&fields=files(id,name)&spaces=drive');
+  const data = await r.json();
+  if (data.files && data.files.length) return data.files[0].id;
+  const meta = { name, mimeType: 'application/vnd.google-apps.folder' };
+  if (parentId) meta.parents = [parentId];
+  const c = await _driveFetch('https://www.googleapis.com/drive/v3/files?fields=id', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(meta)
+  });
+  return (await c.json()).id;
+}
+
+// Sube (o reemplaza) un archivo en la carpeta del estado dado
+async function _driveSubirArchivo(blob, filename, estadoLabel) {
+  const rootId = await _driveEnsureFolder(DRIVE_ROOT, null);
+  const folderId = await _driveEnsureFolder(estadoLabel, rootId);
+  // ¿Existe ya un archivo con ese nombre en la carpeta? → actualizar
+  const q = `name='${filename.replace(/'/g,"\\'")}' and '${folderId}' in parents and trashed=false`;
+  const sr = await _driveFetch('https://www.googleapis.com/drive/v3/files?q=' + encodeURIComponent(q) + '&fields=files(id)');
+  const existing = (await sr.json()).files;
+  const token = await _driveGetToken(false);
+  if (existing && existing.length) {
+    await fetch('https://www.googleapis.com/upload/drive/v3/files/' + existing[0].id + '?uploadType=media', {
+      method: 'PATCH', headers: { Authorization: 'Bearer ' + token, 'Content-Type': blob.type }, body: blob
+    });
+    return { updated: true };
+  }
+  const meta = { name: filename, parents: [folderId] };
+  const form = new FormData();
+  form.append('metadata', new Blob([JSON.stringify(meta)], { type: 'application/json' }));
+  form.append('file', blob);
+  await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart', {
+    method: 'POST', headers: { Authorization: 'Bearer ' + token }, body: form
+  });
+  return { updated: false };
+}
+
+async function driveConectar() {
+  const cid = driveClientId();
+  if (!cid) { toast('Pega primero el Client ID'); return; }
+  try {
+    setDriveStatus('conectando...', '#fbbf24');
+    await _driveGetToken(true);
+    setDriveStatus('conectado ✓', '#22c55e');
+    toast('Drive conectado');
+  } catch (e) {
+    setDriveStatus('error: ' + e.message, '#ef4444');
+    toast('Error Drive: ' + e.message);
+  }
+}
+function driveDesconectar() {
+  _driveToken = null; _driveTokenExp = 0;
+  localStorage.removeItem('digi_drive_connected');
+  setDriveStatus('desconectado', '#9ca3af');
+  toast('Drive desconectado');
+}
+
+// Sube el plano actual a Drive en la carpeta del estado indicado (PDF)
+async function subirPlanoADrive(estadoLabel, silencioso) {
+  if (!driveClientId()) { if (!silencioso) toast('Configura Drive en Ajustes'); return; }
+  if (!state.bgLoaded) { if (!silencioso) toast('Carga un plano primero'); return; }
+  try {
+    if (!silencioso) toast('Subiendo a Drive...');
+    await _cargarJsPDF();
+    const blob = await generarPdfBlob();
+    const fname = _baseFilename() + '.pdf';
+    const r = await _driveSubirArchivo(blob, fname, estadoLabel);
+    toast('☁️ Subido a Drive / ' + estadoLabel + (r.updated ? ' (actualizado)' : ''));
+  } catch (e) {
+    if (!silencioso) toast('Error Drive: ' + e.message);
+    console.warn('subirPlanoADrive:', e);
+  }
+}
+window.driveConectar = driveConectar;
+window.driveDesconectar = driveDesconectar;
+window.subirPlanoADrive = subirPlanoADrive;
+
+// ============================================================
 // INIT
 // ============================================================
 loadSettings();
@@ -2683,6 +2854,15 @@ syncSettingsToUI();
 syncProjectFromUI();
 updateCalc();
 _initFiltrosProyectos();
+// Drive: cargar Client ID y preferencias guardadas
+(function initDrive(){
+  const cid = localStorage.getItem('digi_drive_clientid') || '';
+  const inp = document.getElementById('setDriveClientId');
+  if (inp) { inp.value = cid; inp.addEventListener('input', () => localStorage.setItem('digi_drive_clientid', inp.value.trim())); }
+  const auto = document.getElementById('setDriveAuto');
+  if (auto) { auto.checked = driveAutoOn(); auto.addEventListener('change', () => localStorage.setItem('digi_drive_auto', auto.checked ? '1' : '0')); }
+  if (cid && localStorage.getItem('digi_drive_connected') === '1') setDriveStatus('configurado (toca Conectar)', '#9ca3af');
+})();
 document.getElementById('prjFecha').value = new Date().toISOString().split('T')[0];
 project.fecha = document.getElementById('prjFecha').value;
 </script>

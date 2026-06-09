@@ -3,7 +3,14 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no, viewport-fit=cover">
-<title>Editor de Planos DIGI v5.9.3</title>
+<title>Editor de Planos DIGI v6.0</title>
+<meta name="theme-color" content="#1e2a3a">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Planos DIGI">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon-192.png">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
@@ -188,7 +195,7 @@
 <div class="app">
 
   <div class="topbar">
-    <span class="logo">DIGI<span class="ver">v5.9.3</span></span>
+    <span class="logo">DIGI<span class="ver">v6.0</span></span>
     <span class="spacer"></span>
     <button id="btnUndo" class="undo" title="Deshacer">↶</button>
     <button id="btnSettings" title="Ajustes">⚙️</button>
@@ -199,6 +206,7 @@
     <button id="btnExport" title="Descargar PNG (calidad máxima)">💾PNG</button>
     <button id="btnExportJpg" title="Descargar JPG (más ligero)">💾JPG</button>
     <button id="btnExportPdf" title="Descargar PDF (para subir al sistema)">💾PDF</button>
+    <button id="btnDrive" title="Subir a Google Drive">☁️</button>
     <button id="btnShare" title="Compartir (JPG)" style="display:none">📤</button>
   </div>
 
@@ -207,7 +215,7 @@
       <div class="logo-wrap">
         <div class="logo-main">DIGI</div>
         <div class="logo-sub">Editor de Planos</div>
-        <div class="logo-ver">v5.9.3</div>
+        <div class="logo-ver">v6.0</div>
       </div>
       <div class="cable-line"></div>
       <p>Carga una imagen o PDF del plano base para comenzar</p>
@@ -375,6 +383,24 @@
   <div class="field">
     <label>Grapeo ARQ (m)</label>
     <input type="number" id="setGrapeoArq" value="3">
+  </div>
+
+  <h2 style="margin-top:20px;">☁️ Google Drive</h2>
+  <div style="font-size:11px;color:#9ca3af;margin-bottom:8px;line-height:1.4">
+    Sube los planos a carpetas <b>Planos DIGI / Recibido · En curso · Terminado · Enviado</b> en tu Drive, accesibles desde el PC.
+  </div>
+  <div class="field">
+    <label>Client ID de Google (OAuth web)</label>
+    <input type="text" id="setDriveClientId" placeholder="xxxxx.apps.googleusercontent.com">
+  </div>
+  <div id="driveStatus" style="font-size:11px;color:#9ca3af;margin-bottom:8px;">Estado: sin conectar</div>
+  <div style="display:flex;gap:8px;flex-wrap:wrap;">
+    <button onclick="driveConectar()" style="flex:1;min-width:120px;padding:9px;border-radius:6px;background:#2563eb;color:#fff;font-weight:600;border:none;cursor:pointer;font-size:12px;">🔑 Conectar Drive</button>
+    <button onclick="driveDesconectar()" style="flex:1;min-width:120px;padding:9px;border-radius:6px;background:#1f2530;color:#e5e7eb;font-weight:600;border:none;cursor:pointer;font-size:12px;">Desconectar</button>
+  </div>
+  <div class="field check" style="margin-top:10px;">
+    <input type="checkbox" id="setDriveAuto">
+    <label for="setDriveAuto">Subir a Drive automáticamente al cambiar estado</label>
   </div>
 </div>
 
@@ -660,6 +686,7 @@ function selectTool(tool, data) {
 function updateToolUI() {
   document.querySelectorAll('.tool[data-tool]').forEach(b => b.classList.remove('active'));
   if (!state.tool) {
+    // Sin herramienta: marcar el botón "Mover" como activo
     document.querySelectorAll('.tool[data-tool="__pan__"]').forEach(b => b.classList.add('active'));
     return;
   }
@@ -1067,6 +1094,7 @@ function renderElement(svg, el) {
   } else if (el.type === 'valona') {
     const g = svgEl('g', { class: 'marker' + sel, 'data-elem-id': id });
     const s = el.size || 1;
+    // Anillo exterior con el color del cable asignado
     const cableColor = (() => { const c = state.elements.find(e => e.id === el.cableId); return c ? c.color : null; })();
     if (cableColor) {
       g.appendChild(svgEl('circle', { cx: el.x, cy: el.y, r: 18*s, fill: 'none', stroke: cableColor, 'stroke-width': 3.5*s, 'stroke-opacity': '0.85', 'data-elem-id': id }));
@@ -1153,10 +1181,13 @@ function renderElement(svg, el) {
   } else if (el.type === 'nota') {
     const g = svgEl('g', { class: 'marker' + sel, 'data-elem-id': id });
     const s = el.size || 1;
+    // Círculo blanco de contraste para que destaque sobre cualquier fondo
     g.appendChild(svgEl('circle', { cx: el.x, cy: el.y, r: 15*s, fill: '#fff', stroke: '#dc2626', 'stroke-width': 2.5*s, 'data-elem-id': id }));
+    // Asterisco rojo grande
     const ast = svgEl('text', { x: el.x, y: el.y + 8*s, 'font-size': 26*s, 'font-family': 'Arial, sans-serif', 'font-weight': '900', fill: '#dc2626', 'text-anchor': 'middle', 'data-elem-id': id });
     ast.textContent = '✱';
     g.appendChild(ast);
+    // Número en globo amarillo arriba a la derecha
     g.appendChild(svgEl('circle', { cx: el.x + 13*s, cy: el.y - 11*s, r: 8*s, fill: '#fde047', stroke: '#000', 'stroke-width': 1, 'data-elem-id': id }));
     const num = svgEl('text', { x: el.x + 13*s, y: el.y - 7*s, 'font-size': 11*s, 'font-family': 'Arial, sans-serif', 'font-weight': '800', fill: '#000', 'text-anchor': 'middle', 'data-elem-id': id });
     num.textContent = el.num || '';
@@ -1180,6 +1211,7 @@ function newId() { return 'e' + Date.now() + Math.floor(Math.random() * 1000); }
 function pushHistory() {
   state.history.push(JSON.stringify({ els: state.elements, activeId: state.activeCableId }));
   if (state.history.length > 100) state.history.shift();
+  // Auto-guardar el proyecto en IndexedDB (debounced)
   if (typeof autoGuardar === 'function') autoGuardar();
 }
 function undo() {
@@ -1881,6 +1913,7 @@ function aprenderSeparacionAbajo(el, soloMismoTexto) {
   return el.boxH || (lines.length * fs * 1.25 + 6);
 }
 
+// ↓ Repetir: duplica el texto debajo con la misma separación entre copias idénticas
 document.getElementById('popupRepeatDown').onclick = () => {
   if (!popupElement || popupElement.type !== 'text') return;
   const el = popupElement;
@@ -1896,6 +1929,7 @@ document.getElementById('popupRepeatDown').onclick = () => {
   toast('Copia añadida');
 };
 
+// ↓ Siguiente: salta a la siguiente posición con caja vacía lista para escribir distinto
 document.getElementById('popupRepeatBlank').onclick = () => {
   if (!popupElement || popupElement.type !== 'text') return;
   const el = popupElement;
@@ -1905,11 +1939,13 @@ document.getElementById('popupRepeatBlank').onclick = () => {
   nueva.id = newId();
   nueva.y = el.y + dy;
   nueva.text = '';
+  // El usuario empieza un texto nuevo: liberar el auto-color para que aplique al escribir
   nueva._textColorManual = false;
   nueva.textColor = null;
   state.elements.push(nueva);
   state.selectedId = nueva.id;
   popupElement = nueva;
+  // Reset del input y foco para escribir directamente
   const labelInput = document.getElementById('popupLabel');
   labelInput.value = '';
   setTimeout(() => labelInput.focus(), 30);
@@ -2015,6 +2051,7 @@ async function loadPdf(file) {
   renderToCanvas(c);
 }
 function renderToCanvas(source) {
+  // Limpiar el estado anterior si no estamos reabriendo un proyecto guardado
   if (!state._cargandoProyectoGuardado) {
     state.elements = [];
     state.activeCableId = null;
@@ -2034,6 +2071,7 @@ function renderToCanvas(source) {
   fitToView();
   redraw();
   toast('Plano cargado');
+  // Crear un nuevo proyecto guardado para esta sesión (solo si no estamos reabriendo uno)
   if (!state._cargandoProyectoGuardado) {
     state.currentProjectId = null;
     setTimeout(() => { if (typeof crearProyectoActual === 'function') crearProyectoActual(); }, 200);
@@ -2201,6 +2239,8 @@ async function generatePlanBlob(mime = 'image/png', quality) {
 function _baseFilename() {
   return (getTitle() || 'plano').replace(/[^\w\s\-\.]/g, '_').replace(/\s+/g, '_');
 }
+// Intenta abrir el menú "Enviar a..." del sistema (WhatsApp, Drive, Guardar archivos...)
+// Si no está disponible, cae a descarga directa.
 async function compartirOdescargar(blob, fname, mime) {
   const file = new File([blob], fname, { type: mime });
   if (navigator.canShare && navigator.canShare({ files: [file] })) {
@@ -2209,7 +2249,7 @@ async function compartirOdescargar(blob, fname, mime) {
       toast('Compartido');
       return;
     } catch (e) {
-      if (e.name === 'AbortError') return;
+      if (e.name === 'AbortError') return; // cancelado
       console.warn('share fallback:', e);
     }
   }
@@ -2226,7 +2266,18 @@ async function exportarImagen(mime, ext, quality) {
 }
 document.getElementById('btnExport').onclick    = () => exportarImagen('image/png', 'png');
 document.getElementById('btnExportJpg').onclick = () => exportarImagen('image/jpeg', 'jpg', 0.92);
+document.getElementById('btnDrive').onclick = async () => {
+  if (!driveClientId()) { toast('Configura Drive en ⚙️ Ajustes'); openPanel('settingsPanel'); return; }
+  // Carpeta según el estado del proyecto actual (o "En curso" por defecto)
+  let estadoLabel = ESTADOS.curso.label;
+  if (state.currentProjectId) {
+    const p = await _getProject(state.currentProjectId);
+    if (p && ESTADOS[p.estado]) estadoLabel = ESTADOS[p.estado].label;
+  }
+  await subirPlanoADrive(estadoLabel, false);
+};
 
+// Descarga PDF (carga jsPDF de CDN solo la primera vez)
 async function _cargarJsPDF() {
   if (window.jspdf && window.jspdf.jsPDF) return;
   toast('⏳ Descargando motor PDF...');
@@ -2237,27 +2288,31 @@ async function _cargarJsPDF() {
     document.head.appendChild(s);
   });
 }
+// Genera el blob del PDF (A4, auto-orientación). Reutilizable por descarga y Drive.
+async function generarPdfBlob() {
+  await _cargarJsPDF();
+  const blob = await generatePlanBlob('image/jpeg', 0.92);
+  const dataUrl = await new Promise(r => { const fr = new FileReader(); fr.onload = () => r(fr.result); fr.readAsDataURL(blob); });
+  const img = await new Promise((r, j) => { const i = new Image(); i.onload = () => r(i); i.onerror = j; i.src = dataUrl; });
+  const aspect = img.width / img.height;
+  const orientation = aspect > 1 ? 'landscape' : 'portrait';
+  const { jsPDF } = window.jspdf;
+  const pdf = new jsPDF({ orientation, unit: 'mm', format: 'a4' });
+  const pageW = pdf.internal.pageSize.getWidth();
+  const pageH = pdf.internal.pageSize.getHeight();
+  const margin = 5;
+  const maxW = pageW - 2*margin, maxH = pageH - 2*margin;
+  let iw, ih;
+  if (aspect > maxW / maxH) { iw = maxW; ih = maxW / aspect; }
+  else                       { ih = maxH; iw = maxH * aspect; }
+  pdf.addImage(dataUrl, 'JPEG', (pageW - iw) / 2, (pageH - ih) / 2, iw, ih);
+  return pdf.output('blob');
+}
 document.getElementById('btnExportPdf').onclick = async () => {
   if (!state.bgLoaded) { toast('Carga un plano primero'); return; }
   try {
-    await _cargarJsPDF();
     toast('Generando PDF...');
-    const blob = await generatePlanBlob('image/jpeg', 0.92);
-    const dataUrl = await new Promise(r => { const fr = new FileReader(); fr.onload = () => r(fr.result); fr.readAsDataURL(blob); });
-    const img = await new Promise((r, j) => { const i = new Image(); i.onload = () => r(i); i.onerror = j; i.src = dataUrl; });
-    const aspect = img.width / img.height;
-    const orientation = aspect > 1 ? 'landscape' : 'portrait';
-    const { jsPDF } = window.jspdf;
-    const pdf = new jsPDF({ orientation, unit: 'mm', format: 'a4' });
-    const pageW = pdf.internal.pageSize.getWidth();
-    const pageH = pdf.internal.pageSize.getHeight();
-    const margin = 5;
-    const maxW = pageW - 2*margin, maxH = pageH - 2*margin;
-    let iw, ih;
-    if (aspect > maxW / maxH) { iw = maxW; ih = maxW / aspect; }
-    else                       { ih = maxH; iw = maxH * aspect; }
-    pdf.addImage(dataUrl, 'JPEG', (pageW - iw) / 2, (pageH - ih) / 2, iw, ih);
-    const pdfBlob = pdf.output('blob');
+    const pdfBlob = await generarPdfBlob();
     await compartirOdescargar(pdfBlob, _baseFilename() + '.pdf', 'application/pdf');
   } catch (e) {
     toast('Error PDF: ' + e.message);
@@ -2360,6 +2415,7 @@ function openProjectDB() {
     req.onerror = () => rej(req.error);
   });
 }
+
 async function _putProject(entry) {
   const db = await openProjectDB();
   await new Promise((res, rej) => {
@@ -2369,6 +2425,7 @@ async function _putProject(entry) {
   });
   db.close();
 }
+
 async function _getProject(id) {
   const db = await openProjectDB();
   const entry = await new Promise((res, rej) => {
@@ -2380,6 +2437,7 @@ async function _getProject(id) {
   db.close();
   return entry;
 }
+
 async function listarProyectos() {
   const db = await openProjectDB();
   const all = await new Promise((res, rej) => {
@@ -2391,6 +2449,7 @@ async function listarProyectos() {
   db.close();
   return all.sort((a, b) => (b.fecha || '').localeCompare(a.fecha || ''));
 }
+
 async function borrarProyecto(id) {
   const db = await openProjectDB();
   await new Promise((res, rej) => {
@@ -2400,10 +2459,14 @@ async function borrarProyecto(id) {
   });
   db.close();
 }
+
+// Crea entrada cuando se carga un nuevo plano (con imagen base + thumbnail)
 async function crearProyectoActual() {
   if (!state.bgLoaded) return;
   const canvas = document.getElementById('bgCanvas');
+  // Imagen base como JPEG ligero
   const imgBlob = await new Promise(r => canvas.toBlob(r, 'image/jpeg', 0.85));
+  // Thumbnail 240px ancho
   const t = document.createElement('canvas');
   const ratio = canvas.height / canvas.width;
   t.width = 240; t.height = Math.max(60, Math.round(240 * ratio));
@@ -2432,13 +2495,15 @@ const ESTADOS = {
 };
 let _filtroProyectos = 'todos';
 
-// Cambia un campo del proyecto en IndexedDB
+// Cambia un campo del proyecto en IndexedDB y refresca
 async function actualizarCampoProyecto(id, campo, valor) {
   const e = await _getProject(id);
   if (!e) return;
   e[campo] = valor;
   await _putProject(e);
 }
+
+// Actualiza solo metadata + elements del proyecto actual (no la imagen)
 let _autoSaveTimer = null;
 function autoGuardar() {
   if (!state.currentProjectId || !state.bgLoaded) return;
@@ -2456,6 +2521,7 @@ function autoGuardar() {
     } catch(e) { console.warn('autoGuardar:', e); }
   }, 1500);
 }
+
 async function abrirProyecto(id) {
   const entry = await _getProject(id);
   if (!entry) { toast('No se encontró el proyecto'); return; }
@@ -2474,9 +2540,12 @@ async function abrirProyecto(id) {
   };
   img.src = URL.createObjectURL(entry.imgBlob);
 }
+
+// Pinta la lista de proyectos en el panel (con filtros, estado, alias, notas)
 async function refrescarPanelProyectos() {
   const cont = document.getElementById('projectsList');
   cont.innerHTML = '<div style="color:#6b7280;font-size:12px">Cargando...</div>';
+  // Marcar el filtro activo
   document.querySelectorAll('.filtro-btn').forEach(b => {
     const act = b.dataset.filtro === _filtroProyectos;
     b.style.background = act ? '#2563eb' : '#1f2530';
@@ -2484,6 +2553,7 @@ async function refrescarPanelProyectos() {
   });
   try {
     let list = await listarProyectos();
+    // Aplicar filtro
     if (_filtroProyectos !== 'todos') {
       list = list.filter(p => (p.estado || 'recibido') === _filtroProyectos);
     }
@@ -2497,6 +2567,8 @@ async function refrescarPanelProyectos() {
       const est = ESTADOS[p.estado || 'recibido'] || ESTADOS.recibido;
       const card = document.createElement('div');
       card.style.cssText = 'padding:8px;border-radius:8px;background:#1f2530;margin-bottom:8px;border-left:4px solid ' + est.color + ';';
+
+      // Fila superior: miniatura + info, toca para abrir
       const top = document.createElement('div');
       top.style.cssText = 'display:flex;gap:10px;align-items:center;cursor:pointer;';
       const img = document.createElement('img');
@@ -2515,6 +2587,8 @@ async function refrescarPanelProyectos() {
       top.appendChild(img); top.appendChild(info);
       top.onclick = () => abrirProyecto(p.id);
       card.appendChild(top);
+
+      // Fila de acciones
       const acc = document.createElement('div');
       acc.style.cssText = 'display:flex;gap:5px;margin-top:7px;flex-wrap:wrap;';
       const mkBtn = (txt, bg, col, fn) => {
@@ -2524,6 +2598,7 @@ async function refrescarPanelProyectos() {
         b.onclick = (e) => { e.stopPropagation(); fn(); };
         return b;
       };
+      // Selector de estado (cicla)
       acc.appendChild(mkBtn('🔄 Estado', '#374151', '#e5e7eb', async () => {
         const orden = ['recibido','curso','terminado','enviado'];
         const actual = orden.indexOf(p.estado || 'recibido');
@@ -2531,24 +2606,30 @@ async function refrescarPanelProyectos() {
         await actualizarCampoProyecto(p.id, 'estado', nuevo);
         refrescarPanelProyectos();
         toast('Estado: ' + ESTADOS[nuevo].label);
+        if (driveAutoOn() && p.id === state.currentProjectId) subirPlanoADrive(ESTADOS[nuevo].label, true);
       }));
+      // Marcar enviado
       acc.appendChild(mkBtn('✅ Enviado', '#065f46', '#d1fae5', async () => {
         await actualizarCampoProyecto(p.id, 'estado', 'enviado');
         refrescarPanelProyectos();
         toast('Marcado como enviado');
+        if (driveAutoOn() && p.id === state.currentProjectId) subirPlanoADrive(ESTADOS.enviado.label, true);
       }));
+      // Alias
       acc.appendChild(mkBtn('✏️ Alias', '#1e3a5f', '#dbeafe', async () => {
         const v = prompt('Alias para este plano (nombre fácil):', p.alias || '');
         if (v === null) return;
         await actualizarCampoProyecto(p.id, 'alias', v.trim());
         refrescarPanelProyectos();
       }));
+      // Notas
       acc.appendChild(mkBtn('📝 Nota', '#3f3f46', '#e5e7eb', async () => {
         const v = prompt('Notas:', p.notas || '');
         if (v === null) return;
         await actualizarCampoProyecto(p.id, 'notas', v.trim());
         refrescarPanelProyectos();
       }));
+      // Borrar
       acc.appendChild(mkBtn('🗑', '#7f1d1d', '#fecaca', async () => {
         if (!confirm('¿Borrar "' + nombreMostrar + '"? No se puede deshacer.')) return;
         await borrarProyecto(p.id);
@@ -2563,11 +2644,13 @@ async function refrescarPanelProyectos() {
     cont.innerHTML = '<div style="color:#ef4444;font-size:12px">Error: ' + e.message + '</div>';
   }
 }
+// Conectar botones de filtro (una sola vez)
 function _initFiltrosProyectos() {
   document.querySelectorAll('.filtro-btn').forEach(b => {
     b.onclick = () => { _filtroProyectos = b.dataset.filtro; refrescarPanelProyectos(); };
   });
 }
+
 function syncProjectToUI() {
   ['prjTitle','prjName','prjSuc','prjEmpalmes','prjFecha','prjCableText'].forEach(id => {
     const k = id.slice(3,4).toLowerCase() + id.slice(4);
@@ -2577,6 +2660,7 @@ function syncProjectToUI() {
   if (document.getElementById('prjAddCajetin')) document.getElementById('prjAddCajetin').checked = !!project.addCajetin;
 }
 
+// Exportar el proyecto como archivo .dproject (JSON con imagen embebida)
 async function exportarEditable() {
   if (!state.bgLoaded) { toast('Carga un plano primero'); return; }
   const canvas = document.getElementById('bgCanvas');
@@ -2591,8 +2675,11 @@ async function exportarEditable() {
     imgDataUrl
   };
   const blob = new Blob([JSON.stringify(data)], { type: 'application/json' });
-  await compartirOdescargar(blob, _baseFilename() + '.dproject', 'application/json');
+  const fname = _baseFilename() + '.dproject';
+  await compartirOdescargar(blob, fname, 'application/json');
 }
+
+// Importar un archivo .dproject — restaura plano + anotaciones editables
 async function importarEditable(file) {
   try {
     const text = await file.text();
@@ -2608,6 +2695,7 @@ async function importarEditable(file) {
       Object.assign(project, data.project || {});
       syncProjectToUI();
       redraw();
+      // Crear nuevo proyecto en IndexedDB para auto-guardado posterior
       setTimeout(() => crearProyectoActual(), 200);
       closePanel('projectsPanel');
       toast('Importado: ' + (data.title || 'sin título'));
@@ -2622,6 +2710,142 @@ window.exportarEditable = exportarEditable;
 window.importarEditable = importarEditable;
 
 // ============================================================
+// GOOGLE DRIVE (subida a carpetas por estado)
+// ============================================================
+const DRIVE_SCOPE = 'https://www.googleapis.com/auth/drive.file';
+const DRIVE_ROOT = 'Planos DIGI';
+let _driveToken = null, _driveTokenExp = 0, _driveTokenClient = null, _gisLoaded = false;
+
+function driveClientId() { return (localStorage.getItem('digi_drive_clientid') || '').trim(); }
+function driveAutoOn() { return localStorage.getItem('digi_drive_auto') === '1'; }
+function setDriveStatus(txt, color) {
+  const el = document.getElementById('driveStatus');
+  if (el) { el.textContent = 'Estado: ' + txt; el.style.color = color || '#9ca3af'; }
+}
+
+function _cargarGIS() {
+  if (_gisLoaded) return Promise.resolve();
+  return new Promise((res, rej) => {
+    const s = document.createElement('script');
+    s.src = 'https://accounts.google.com/gsi/client';
+    s.onload = () => { _gisLoaded = true; res(); };
+    s.onerror = () => rej(new Error('No se pudo cargar Google Identity'));
+    document.head.appendChild(s);
+  });
+}
+
+// Obtiene un token válido (re-solicita si caducó). interactive=true muestra el diálogo.
+function _driveGetToken(interactive) {
+  return new Promise(async (resolve, reject) => {
+    if (_driveToken && Date.now() < _driveTokenExp - 60000) return resolve(_driveToken);
+    const cid = driveClientId();
+    if (!cid) return reject(new Error('Falta el Client ID en Ajustes'));
+    await _cargarGIS();
+    if (!_driveTokenClient) {
+      _driveTokenClient = google.accounts.oauth2.initTokenClient({
+        client_id: cid, scope: DRIVE_SCOPE,
+        callback: (resp) => {
+          if (resp.error) { reject(new Error(resp.error)); return; }
+          _driveToken = resp.access_token;
+          _driveTokenExp = Date.now() + (resp.expires_in || 3600) * 1000;
+          localStorage.setItem('digi_drive_connected', '1');
+          resolve(_driveToken);
+        }
+      });
+    }
+    _driveTokenClient.requestAccessToken({ prompt: interactive ? 'consent' : '' });
+  });
+}
+
+async function _driveFetch(url, opts = {}) {
+  const token = await _driveGetToken(false);
+  opts.headers = Object.assign({}, opts.headers, { Authorization: 'Bearer ' + token });
+  const r = await fetch(url, opts);
+  if (!r.ok) throw new Error('Drive ' + r.status + ': ' + (await r.text()).slice(0, 120));
+  return r;
+}
+
+// Busca una carpeta por nombre (opcionalmente dentro de un padre); si no existe la crea.
+async function _driveEnsureFolder(name, parentId) {
+  let q = `mimeType='application/vnd.google-apps.folder' and trashed=false and name='${name.replace(/'/g,"\\'")}'`;
+  if (parentId) q += ` and '${parentId}' in parents`;
+  const r = await _driveFetch('https://www.googleapis.com/drive/v3/files?q=' + encodeURIComponent(q) + '&fields=files(id,name)&spaces=drive');
+  const data = await r.json();
+  if (data.files && data.files.length) return data.files[0].id;
+  const meta = { name, mimeType: 'application/vnd.google-apps.folder' };
+  if (parentId) meta.parents = [parentId];
+  const c = await _driveFetch('https://www.googleapis.com/drive/v3/files?fields=id', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(meta)
+  });
+  return (await c.json()).id;
+}
+
+// Sube (o reemplaza) un archivo en la carpeta del estado dado
+async function _driveSubirArchivo(blob, filename, estadoLabel) {
+  const rootId = await _driveEnsureFolder(DRIVE_ROOT, null);
+  const folderId = await _driveEnsureFolder(estadoLabel, rootId);
+  // ¿Existe ya un archivo con ese nombre en la carpeta? → actualizar
+  const q = `name='${filename.replace(/'/g,"\\'")}' and '${folderId}' in parents and trashed=false`;
+  const sr = await _driveFetch('https://www.googleapis.com/drive/v3/files?q=' + encodeURIComponent(q) + '&fields=files(id)');
+  const existing = (await sr.json()).files;
+  const token = await _driveGetToken(false);
+  if (existing && existing.length) {
+    await fetch('https://www.googleapis.com/upload/drive/v3/files/' + existing[0].id + '?uploadType=media', {
+      method: 'PATCH', headers: { Authorization: 'Bearer ' + token, 'Content-Type': blob.type }, body: blob
+    });
+    return { updated: true };
+  }
+  const meta = { name: filename, parents: [folderId] };
+  const form = new FormData();
+  form.append('metadata', new Blob([JSON.stringify(meta)], { type: 'application/json' }));
+  form.append('file', blob);
+  await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart', {
+    method: 'POST', headers: { Authorization: 'Bearer ' + token }, body: form
+  });
+  return { updated: false };
+}
+
+async function driveConectar() {
+  const cid = driveClientId();
+  if (!cid) { toast('Pega primero el Client ID'); return; }
+  try {
+    setDriveStatus('conectando...', '#fbbf24');
+    await _driveGetToken(true);
+    setDriveStatus('conectado ✓', '#22c55e');
+    toast('Drive conectado');
+  } catch (e) {
+    setDriveStatus('error: ' + e.message, '#ef4444');
+    toast('Error Drive: ' + e.message);
+  }
+}
+function driveDesconectar() {
+  _driveToken = null; _driveTokenExp = 0;
+  localStorage.removeItem('digi_drive_connected');
+  setDriveStatus('desconectado', '#9ca3af');
+  toast('Drive desconectado');
+}
+
+// Sube el plano actual a Drive en la carpeta del estado indicado (PDF)
+async function subirPlanoADrive(estadoLabel, silencioso) {
+  if (!driveClientId()) { if (!silencioso) toast('Configura Drive en Ajustes'); return; }
+  if (!state.bgLoaded) { if (!silencioso) toast('Carga un plano primero'); return; }
+  try {
+    if (!silencioso) toast('Subiendo a Drive...');
+    await _cargarJsPDF();
+    const blob = await generarPdfBlob();
+    const fname = _baseFilename() + '.pdf';
+    const r = await _driveSubirArchivo(blob, fname, estadoLabel);
+    toast('☁️ Subido a Drive / ' + estadoLabel + (r.updated ? ' (actualizado)' : ''));
+  } catch (e) {
+    if (!silencioso) toast('Error Drive: ' + e.message);
+    console.warn('subirPlanoADrive:', e);
+  }
+}
+window.driveConectar = driveConectar;
+window.driveDesconectar = driveDesconectar;
+window.subirPlanoADrive = subirPlanoADrive;
+
+// ============================================================
 // INIT
 // ============================================================
 loadSettings();
@@ -2630,6 +2854,15 @@ syncSettingsToUI();
 syncProjectFromUI();
 updateCalc();
 _initFiltrosProyectos();
+// Drive: cargar Client ID y preferencias guardadas
+(function initDrive(){
+  const cid = localStorage.getItem('digi_drive_clientid') || '';
+  const inp = document.getElementById('setDriveClientId');
+  if (inp) { inp.value = cid; inp.addEventListener('input', () => localStorage.setItem('digi_drive_clientid', inp.value.trim())); }
+  const auto = document.getElementById('setDriveAuto');
+  if (auto) { auto.checked = driveAutoOn(); auto.addEventListener('change', () => localStorage.setItem('digi_drive_auto', auto.checked ? '1' : '0')); }
+  if (cid && localStorage.getItem('digi_drive_connected') === '1') setDriveStatus('configurado (toca Conectar)', '#9ca3af');
+})();
 document.getElementById('prjFecha').value = new Date().toISOString().split('T')[0];
 project.fecha = document.getElementById('prjFecha').value;
 </script>
