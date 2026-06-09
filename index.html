@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no, viewport-fit=cover">
-<title>Editor de Planos DIGI v6.7.1</title>
+<title>Editor de Planos DIGI v6.8</title>
 <meta name="theme-color" content="#1e2a3a">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -195,7 +195,7 @@
 <div class="app">
 
   <div class="topbar">
-    <span class="logo">DIGI<span class="ver">v6.7.1</span></span>
+    <span class="logo">DIGI<span class="ver">v6.8</span></span>
     <button id="btnHome" title="Ir al inicio" style="display:none">🏠</button>
     <span id="topbarTitle" style="font-size:12px;font-weight:600;color:#cbd5e1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:40vw;"></span>
     <span class="spacer"></span>
@@ -217,7 +217,7 @@
       <div class="logo-wrap">
         <div class="logo-main">DIGI</div>
         <div class="logo-sub">Editor de Planos</div>
-        <div class="logo-ver">v6.7.1</div>
+        <div class="logo-ver">v6.8</div>
       </div>
       <div class="cable-line"></div>
       <p>Carga una imagen o PDF del plano base para comenzar</p>
@@ -3149,6 +3149,21 @@ syncSettingsToUI();
 syncProjectFromUI();
 updateCalc();
 _initFiltrosProyectos();
+// Service Worker: actualización automática (red primero) + offline
+if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
+  navigator.serviceWorker.register('sw.js').then(reg => {
+    reg.addEventListener('updatefound', () => {
+      const nw = reg.installing;
+      if (!nw) return;
+      nw.addEventListener('statechange', () => {
+        if (nw.state === 'activated' && navigator.serviceWorker.controller) {
+          if (!state.bgLoaded) location.reload();
+          else toast('✨ Nueva versión lista · recarga cuando puedas');
+        }
+      });
+    });
+  }).catch(() => {});
+}
 // Drive: cargar Client ID y preferencias guardadas
 (function initDrive(){
   const inp = document.getElementById('setDriveClientId');
