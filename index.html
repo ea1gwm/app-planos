@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no, viewport-fit=cover">
-<title>Editor de Planos DIGI v6.3</title>
+<title>Editor de Planos DIGI v6.3.1</title>
 <meta name="theme-color" content="#1e2a3a">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -195,7 +195,7 @@
 <div class="app">
 
   <div class="topbar">
-    <span class="logo">DIGI<span class="ver">v6.3</span></span>
+    <span class="logo">DIGI<span class="ver">v6.3.1</span></span>
     <span class="spacer"></span>
     <button id="btnUndo" class="undo" title="Deshacer">↶</button>
     <button id="btnSettings" title="Ajustes">⚙️</button>
@@ -215,7 +215,7 @@
       <div class="logo-wrap">
         <div class="logo-main">DIGI</div>
         <div class="logo-sub">Editor de Planos</div>
-        <div class="logo-ver">v6.3</div>
+        <div class="logo-ver">v6.3.1</div>
       </div>
       <div class="cable-line"></div>
       <p>Carga una imagen o PDF del plano base para comenzar</p>
@@ -2957,8 +2957,13 @@ async function sincronizarConNube() {
         else if ((p.fecha || '') > (remote.fecha || '')) { await subirProyectoNube(p); subidos++; }
       }
     }
+    _filtroProyectos = 'todos'; // mostrar todos para que se vean los recién bajados
     refrescarPanelProyectos();
-    toast(`✓ Sincronizado · ${subidos}↑ · ${bajados}↓`);
+    const totalNube = Object.keys(nubeMap).length;
+    if (subidos === 0 && bajados === 0 && totalNube === 0)
+      toast('Sincronizado · no hay proyectos en Drive todavía');
+    else
+      toast(`✓ Sincronizado · ${subidos} subidos · ${bajados} bajados`);
   } catch (e) {
     toast('Error sync: ' + e.message);
     console.warn('sincronizarConNube:', e);
