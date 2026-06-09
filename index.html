@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no, viewport-fit=cover">
-<title>Editor de Planos DIGI v6.7</title>
+<title>Editor de Planos DIGI v6.7.1</title>
 <meta name="theme-color" content="#1e2a3a">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -195,7 +195,7 @@
 <div class="app">
 
   <div class="topbar">
-    <span class="logo">DIGI<span class="ver">v6.7</span></span>
+    <span class="logo">DIGI<span class="ver">v6.7.1</span></span>
     <button id="btnHome" title="Ir al inicio" style="display:none">🏠</button>
     <span id="topbarTitle" style="font-size:12px;font-weight:600;color:#cbd5e1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:40vw;"></span>
     <span class="spacer"></span>
@@ -217,7 +217,7 @@
       <div class="logo-wrap">
         <div class="logo-main">DIGI</div>
         <div class="logo-sub">Editor de Planos</div>
-        <div class="logo-ver">v6.7</div>
+        <div class="logo-ver">v6.7.1</div>
       </div>
       <div class="cable-line"></div>
       <p>Carga una imagen o PDF del plano base para comenzar</p>
@@ -2995,7 +2995,8 @@ async function listarProyectosNube() {
   const folderId = await _driveProyFolder();
   const q = `'${folderId}' in parents and trashed=false and mimeType='application/json'`;
   const r = await _driveFetch('https://www.googleapis.com/drive/v3/files?q=' + encodeURIComponent(q) + '&fields=files(id,name)&pageSize=1000');
-  return (await r.json()).files || [];
+  // Excluir archivos internos como _deleted.json (no son proyectos)
+  return ((await r.json()).files || []).filter(f => !f.name.startsWith('_'));
 }
 
 // ── MARCAS DE BORRADO (tombstones) para propagar borrados entre dispositivos ──
@@ -3050,6 +3051,7 @@ async function _subirTombstonesNube(lista) {
 async function descargarProyectoNube(fileId) {
   const r = await _driveFetch('https://www.googleapis.com/drive/v3/files/' + fileId + '?alt=media');
   const data = await r.json();
+  if (!data || !data.id || !data.imgDataUrl) { console.warn('JSON de nube no válido, omitido'); return null; }
   const imgBlob = await (await fetch(data.imgDataUrl)).blob();
   const thumbBlob = await _thumbFromDataUrl(data.imgDataUrl);
   await _putProject({
