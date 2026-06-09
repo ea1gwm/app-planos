@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no, viewport-fit=cover">
-<title>Editor de Planos DIGI v6.6</title>
+<title>Editor de Planos DIGI v6.7</title>
 <meta name="theme-color" content="#1e2a3a">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -195,7 +195,9 @@
 <div class="app">
 
   <div class="topbar">
-    <span class="logo">DIGI<span class="ver">v6.6</span></span>
+    <span class="logo">DIGI<span class="ver">v6.7</span></span>
+    <button id="btnHome" title="Ir al inicio" style="display:none">🏠</button>
+    <span id="topbarTitle" style="font-size:12px;font-weight:600;color:#cbd5e1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:40vw;"></span>
     <span class="spacer"></span>
     <button id="btnUndo" class="undo" title="Deshacer">↶</button>
     <button id="btnSettings" title="Ajustes">⚙️</button>
@@ -215,7 +217,7 @@
       <div class="logo-wrap">
         <div class="logo-main">DIGI</div>
         <div class="logo-sub">Editor de Planos</div>
-        <div class="logo-ver">v6.6</div>
+        <div class="logo-ver">v6.7</div>
       </div>
       <div class="cable-line"></div>
       <p>Carga una imagen o PDF del plano base para comenzar</p>
@@ -295,6 +297,10 @@
 
 <!-- POPUP -->
 <div class="elem-popup" id="elemPopup">
+  <div id="popupDragBar" style="display:flex;align-items:center;justify-content:space-between;margin:-10px -10px 8px -10px;padding:7px 10px;background:#0f1115;border-bottom:1px solid #2a2f3a;border-radius:6px 6px 0 0;cursor:move;touch-action:none;user-select:none;">
+    <span style="font-size:11px;color:#9ca3af;">✥ Mover · editar</span>
+    <span id="popupDragClose" style="font-size:14px;color:#9ca3af;cursor:pointer;padding:0 4px;">✕</span>
+  </div>
   <div class="field" id="popupMetersWrap" style="display:none">
     <label id="popupMetersLabel">Metros</label>
     <input type="number" id="popupMeters" min="0" step="1">
@@ -1043,7 +1049,14 @@ function colorCablePorTexto(texto) {
   const ct = CABLE_TYPES.find(c => c.id.startsWith(num));
   return ct ? ct.color : null;
 }
+function updateTopbar() {
+  const home = document.getElementById('btnHome');
+  const title = document.getElementById('topbarTitle');
+  if (home) home.style.display = state.bgLoaded ? '' : 'none';
+  if (title) title.textContent = state.bgLoaded ? ((state.currentAlias && state.currentAlias.trim()) || getTitle() || '') : '';
+}
 function redraw() {
+  updateTopbar();
   const svg = document.getElementById('overlay');
   svg.innerHTML = '';
   svg.setAttribute('width', state.bgWidth);
@@ -2177,6 +2190,45 @@ document.getElementById('btnSettings').onclick = () => openPanel('settingsPanel'
 document.getElementById('btnProject').onclick = () => openPanel('projectPanel');
 document.getElementById('btnRecientes').onclick = () => { openPanel('projectsPanel'); refrescarPanelProyectos(); };
 document.getElementById('fileInputEditable').onchange = (e) => { const f = e.target.files[0]; if (f) importarEditable(f); e.target.value = ''; };
+// Botón Inicio: vuelve a la pantalla de bienvenida (el plano actual queda guardado)
+function irAInicio() {
+  if (state.pendingPath) finishPath();
+  state.bgLoaded = false;
+  state.tool = null; state.toolData = {};
+  closePopup(); closeStackPicker();
+  document.querySelectorAll('.panel.open').forEach(p => p.classList.remove('open'));
+  document.getElementById('emptyStage').style.display = 'flex';
+  document.getElementById('canvasWrap').style.visibility = 'hidden';
+  updateTopbar(); updateToolUI();
+}
+document.getElementById('btnHome').onclick = irAInicio;
+
+// Popup de edición arrastrable (para que no tape lo que quieres ver)
+(function makePopupDraggable(){
+  const popup = document.getElementById('elemPopup');
+  const bar = document.getElementById('popupDragBar');
+  const closeBtn = document.getElementById('popupDragClose');
+  if (!popup || !bar) return;
+  if (closeBtn) closeBtn.onclick = () => closePopup();
+  let drag = null;
+  const start = (cx, cy) => {
+    const r = popup.getBoundingClientRect();
+    drag = { dx: cx - r.left, dy: cy - r.top };
+  };
+  const move = (cx, cy) => {
+    if (!drag) return;
+    let left = cx - drag.dx, top = cy - drag.dy;
+    left = Math.max(4, Math.min(left, window.innerWidth - popup.offsetWidth - 4));
+    top = Math.max(4, Math.min(top, window.innerHeight - popup.offsetHeight - 4));
+    popup.style.left = left + 'px'; popup.style.top = top + 'px';
+  };
+  bar.addEventListener('mousedown', e => { start(e.clientX, e.clientY); e.preventDefault(); });
+  document.addEventListener('mousemove', e => move(e.clientX, e.clientY));
+  document.addEventListener('mouseup', () => drag = null);
+  bar.addEventListener('touchstart', e => { const t = e.touches[0]; start(t.clientX, t.clientY); e.preventDefault(); }, { passive: false });
+  bar.addEventListener('touchmove', e => { const t = e.touches[0]; move(t.clientX, t.clientY); e.preventDefault(); }, { passive: false });
+  bar.addEventListener('touchend', () => drag = null);
+})();
 function openPanel(id) {
   document.querySelectorAll('.panel').forEach(p => p.classList.remove('open'));
   document.getElementById(id).classList.add('open');
@@ -2655,11 +2707,17 @@ async function refrescarPanelProyectos() {
       }));
       // Borrar
       acc.appendChild(mkBtn('🗑', '#7f1d1d', '#fecaca', async () => {
-        if (!confirm('¿Borrar "' + nombreMostrar + '"? No se puede deshacer.')) return;
+        if (!confirm('¿Borrar "' + nombreMostrar + '"?\nSe borrará también en tus otros dispositivos al sincronizar.')) return;
         await borrarProyecto(p.id);
+        _addTombstone(p.id);
         if (state.currentProjectId === p.id) state.currentProjectId = null;
         refrescarPanelProyectos();
         toast('Borrado');
+        // Propagar a la nube si está conectado
+        if (driveClientId() && localStorage.getItem('digi_drive_connected') === '1') {
+          _borrarJsonNube(p.id);
+          _subirTombstonesNube(_getTombstones()).catch(()=>{});
+        }
       }));
       card.appendChild(acc);
       cont.appendChild(card);
@@ -2939,6 +2997,56 @@ async function listarProyectosNube() {
   const r = await _driveFetch('https://www.googleapis.com/drive/v3/files?q=' + encodeURIComponent(q) + '&fields=files(id,name)&pageSize=1000');
   return (await r.json()).files || [];
 }
+
+// ── MARCAS DE BORRADO (tombstones) para propagar borrados entre dispositivos ──
+function _getTombstones() { try { return JSON.parse(localStorage.getItem('digi_deleted') || '[]'); } catch { return []; } }
+function _addTombstone(id) {
+  const t = _getTombstones();
+  if (!t.includes(id)) { t.push(id); localStorage.setItem('digi_deleted', JSON.stringify(t)); }
+}
+// Borra el archivo {id}.json de la nube (si existe)
+async function _borrarJsonNube(id) {
+  try {
+    const folderId = await _driveProyFolder();
+    const q = `name='${id}.json' and '${folderId}' in parents and trashed=false`;
+    const r = await _driveFetch('https://www.googleapis.com/drive/v3/files?q=' + encodeURIComponent(q) + '&fields=files(id)');
+    const f = (await r.json()).files;
+    if (f && f.length) {
+      const token = await _driveGetToken(false);
+      await fetch('https://www.googleapis.com/drive/v3/files/' + f[0].id, { method: 'DELETE', headers: { Authorization: 'Bearer ' + token } });
+    }
+  } catch(e) { console.warn('_borrarJsonNube:', e); }
+}
+// Lee/guarda la lista de borrados en la nube (_deleted.json)
+async function _bajarTombstonesNube() {
+  try {
+    const folderId = await _driveProyFolder();
+    const q = `name='_deleted.json' and '${folderId}' in parents and trashed=false`;
+    const r = await _driveFetch('https://www.googleapis.com/drive/v3/files?q=' + encodeURIComponent(q) + '&fields=files(id)');
+    const f = (await r.json()).files;
+    if (!f || !f.length) return [];
+    const c = await _driveFetch('https://www.googleapis.com/drive/v3/files/' + f[0].id + '?alt=media');
+    return await c.json();
+  } catch(e) { return []; }
+}
+async function _subirTombstonesNube(lista) {
+  const folderId = await _driveProyFolder();
+  const blob = new Blob([JSON.stringify(lista)], { type: 'application/json' });
+  const token = await _driveGetToken(false);
+  const q = `name='_deleted.json' and '${folderId}' in parents and trashed=false`;
+  const r = await _driveFetch('https://www.googleapis.com/drive/v3/files?q=' + encodeURIComponent(q) + '&fields=files(id)');
+  const f = (await r.json()).files;
+  if (f && f.length) {
+    await fetch('https://www.googleapis.com/upload/drive/v3/files/' + f[0].id + '?uploadType=media',
+      { method: 'PATCH', headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' }, body: blob });
+  } else {
+    const form = new FormData();
+    form.append('metadata', new Blob([JSON.stringify({ name: '_deleted.json', parents: [folderId] })], { type: 'application/json' }));
+    form.append('file', blob);
+    await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart',
+      { method: 'POST', headers: { Authorization: 'Bearer ' + token }, body: form });
+  }
+}
 async function descargarProyectoNube(fileId) {
   const r = await _driveFetch('https://www.googleapis.com/drive/v3/files/' + fileId + '?alt=media');
   const data = await r.json();
@@ -2957,23 +3065,46 @@ async function sincronizarConNube() {
   toast('🔄 Sincronizando...');
   try {
     await _driveGetToken(false).catch(() => _driveGetToken(true));
-    const locales = await listarProyectos();
+    // Fusionar marcas de borrado local + nube
+    const tombNube = await _bajarTombstonesNube();
+    let tomb = Array.from(new Set([..._getTombstones(), ...tombNube]));
+
+    let locales = await listarProyectos();
     const nubeFiles = await listarProyectosNube();
     const nubeMap = {};
     nubeFiles.forEach(f => { nubeMap[f.name.replace(/\.json$/, '')] = f.id; });
+
+    // RED DE SEGURIDAD: proyectos que existen aquí pero fueron borrados en otro dispositivo
+    const borradosEnOtro = locales.filter(p => tomb.includes(p.id));
+    if (borradosEnOtro.length) {
+      const nombres = borradosEnOtro.map(p => '· ' + (p.alias || p.title || p.id)).join('\n');
+      if (confirm(`Estos ${borradosEnOtro.length} plano(s) se borraron en otro dispositivo:\n\n${nombres}\n\n¿Borrarlos también aquí?`)) {
+        for (const p of borradosEnOtro) { await borrarProyecto(p.id); _addTombstone(p.id); await _borrarJsonNube(p.id); }
+      } else {
+        // El usuario quiere conservarlos: los "resucita" (quita de tombstones y se re-subirán)
+        tomb = tomb.filter(id => !borradosEnOtro.some(p => p.id === id));
+        localStorage.setItem('digi_deleted', JSON.stringify(_getTombstones().filter(id => !borradosEnOtro.some(p => p.id === id))));
+      }
+    }
+
+    locales = await listarProyectos();
     const localMap = {}; locales.forEach(p => localMap[p.id] = p);
     let subidos = 0, bajados = 0;
     for (const p of locales) { if (!nubeMap[p.id]) { await subirProyectoNube(p); subidos++; } }
-    for (const id in nubeMap) { if (!localMap[id]) { await descargarProyectoNube(nubeMap[id]); bajados++; } }
+    for (const id in nubeMap) {
+      if (tomb.includes(id)) { await _borrarJsonNube(id); continue; } // borrado: no bajar
+      if (!localMap[id]) { await descargarProyectoNube(nubeMap[id]); bajados++; }
+    }
     for (const p of locales) {
-      if (nubeMap[p.id]) {
+      if (nubeMap[p.id] && !tomb.includes(p.id)) {
         const r = await _driveFetch('https://www.googleapis.com/drive/v3/files/' + nubeMap[p.id] + '?alt=media');
         const remote = await r.json();
         if ((remote.fecha || '') > (p.fecha || '')) { await descargarProyectoNube(nubeMap[p.id]); bajados++; }
         else if ((p.fecha || '') > (remote.fecha || '')) { await subirProyectoNube(p); subidos++; }
       }
     }
-    _filtroProyectos = 'todos'; // mostrar todos para que se vean los recién bajados
+    await _subirTombstonesNube(tomb).catch(()=>{});
+    _filtroProyectos = 'todos';
     refrescarPanelProyectos();
     const totalNube = Object.keys(nubeMap).length;
     if (subidos === 0 && bajados === 0 && totalNube === 0)
@@ -3033,6 +3164,7 @@ _initFiltrosProyectos();
   let t = null;
   inp.addEventListener('input', () => {
     state.currentAlias = inp.value;
+    if (typeof updateTopbar === 'function') updateTopbar();
     clearTimeout(t);
     t = setTimeout(async () => { if (state.currentProjectId) { await actualizarCampoProyecto(state.currentProjectId, 'alias', inp.value.trim()); _syncProyectoSiConectado(state.currentProjectId); } }, 800);
   });
