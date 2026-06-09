@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no, viewport-fit=cover">
-<title>Editor de Planos DIGI v6.3.1</title>
+<title>Editor de Planos DIGI v6.4</title>
 <meta name="theme-color" content="#1e2a3a">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -195,7 +195,7 @@
 <div class="app">
 
   <div class="topbar">
-    <span class="logo">DIGI<span class="ver">v6.3.1</span></span>
+    <span class="logo">DIGI<span class="ver">v6.4</span></span>
     <span class="spacer"></span>
     <button id="btnUndo" class="undo" title="Deshacer">↶</button>
     <button id="btnSettings" title="Ajustes">⚙️</button>
@@ -215,7 +215,7 @@
       <div class="logo-wrap">
         <div class="logo-main">DIGI</div>
         <div class="logo-sub">Editor de Planos</div>
-        <div class="logo-ver">v6.3.1</div>
+        <div class="logo-ver">v6.4</div>
       </div>
       <div class="cable-line"></div>
       <p>Carga una imagen o PDF del plano base para comenzar</p>
@@ -2611,23 +2611,26 @@ async function refrescarPanelProyectos() {
         b.onclick = (e) => { e.stopPropagation(); fn(); };
         return b;
       };
-      // Selector de estado (cicla)
-      acc.appendChild(mkBtn('🔄 Estado', '#374151', '#e5e7eb', async () => {
-        const orden = ['recibido','curso','terminado','enviado'];
-        const actual = orden.indexOf(p.estado || 'recibido');
-        const nuevo = orden[(actual + 1) % orden.length];
+      // Selector de estado (desplegable directo)
+      const sel = document.createElement('select');
+      sel.style.cssText = `flex:2;min-width:0;padding:6px 4px;border-radius:5px;border:none;background:${est.color};color:#fff;font-size:11px;font-weight:700;cursor:pointer;`;
+      ['recibido','curso','terminado','enviado'].forEach(k => {
+        const o = document.createElement('option');
+        o.value = k; o.textContent = ESTADOS[k].label;
+        o.style.background = '#1f2530'; o.style.color = '#fff';
+        if ((p.estado || 'recibido') === k) o.selected = true;
+        sel.appendChild(o);
+      });
+      sel.onclick = (e) => e.stopPropagation();
+      sel.onchange = async (e) => {
+        e.stopPropagation();
+        const nuevo = sel.value;
         await actualizarCampoProyecto(p.id, 'estado', nuevo);
         refrescarPanelProyectos();
         toast('Estado: ' + ESTADOS[nuevo].label);
         if (driveAutoOn() && p.id === state.currentProjectId) subirPlanoADrive(ESTADOS[nuevo].label, true);
-      }));
-      // Marcar enviado
-      acc.appendChild(mkBtn('✅ Enviado', '#065f46', '#d1fae5', async () => {
-        await actualizarCampoProyecto(p.id, 'estado', 'enviado');
-        refrescarPanelProyectos();
-        toast('Marcado como enviado');
-        if (driveAutoOn() && p.id === state.currentProjectId) subirPlanoADrive(ESTADOS.enviado.label, true);
-      }));
+      };
+      acc.appendChild(sel);
       // Alias
       acc.appendChild(mkBtn('✏️ Alias', '#1e3a5f', '#dbeafe', async () => {
         const v = prompt('Alias para este plano (nombre fácil):', p.alias || '');
