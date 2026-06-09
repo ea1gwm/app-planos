@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no, viewport-fit=cover">
-<title>Editor de Planos DIGI v6.1</title>
+<title>Editor de Planos DIGI v6.2</title>
 <meta name="theme-color" content="#1e2a3a">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -195,7 +195,7 @@
 <div class="app">
 
   <div class="topbar">
-    <span class="logo">DIGI<span class="ver">v6.1</span></span>
+    <span class="logo">DIGI<span class="ver">v6.2</span></span>
     <span class="spacer"></span>
     <button id="btnUndo" class="undo" title="Deshacer">↶</button>
     <button id="btnSettings" title="Ajustes">⚙️</button>
@@ -215,7 +215,7 @@
       <div class="logo-wrap">
         <div class="logo-main">DIGI</div>
         <div class="logo-sub">Editor de Planos</div>
-        <div class="logo-ver">v6.1</div>
+        <div class="logo-ver">v6.2</div>
       </div>
       <div class="cable-line"></div>
       <p>Carga una imagen o PDF del plano base para comenzar</p>
@@ -432,6 +432,11 @@
 <div class="panel" id="projectPanel">
   <button class="close" onclick="closePanel('projectPanel')">✕</button>
   <h2>📋 Datos del proyecto</h2>
+  <div class="field">
+    <label>📄 Nombre del archivo (Drive / descargas)</label>
+    <input type="text" id="prjAlias" placeholder="Ej: Brión Calle Real">
+    <div style="font-size:10px;color:#6b7280;margin-top:3px;">Este nombre se usa al subir a Drive y al descargar. Si lo dejas vacío usa el título de abajo.</div>
+  </div>
   <div class="field">
     <label>Título del plano (auto si vacío)</label>
     <input type="text" id="prjTitle" placeholder="Auto: Plano Suc XXX 12FO">
@@ -2058,6 +2063,8 @@ function renderToCanvas(source) {
     state.selectedId = null;
     state.pendingPath = null;
     state.history = [];
+    state.currentAlias = '';
+    const aliasInp = document.getElementById('prjAlias'); if (aliasInp) aliasInp.value = '';
   }
   const c = document.getElementById('bgCanvas');
   c.width = source.width; c.height = source.height;
@@ -2237,7 +2244,9 @@ async function generatePlanBlob(mime = 'image/png', quality) {
 }
 
 function _baseFilename() {
-  return (getTitle() || 'plano').replace(/[^\w\s\-\.]/g, '_').replace(/\s+/g, '_');
+  // El alias (nombre fácil) manda sobre el nombre del archivo; si no hay, el título
+  const base = (state.currentAlias && state.currentAlias.trim()) ? state.currentAlias.trim() : (getTitle() || 'plano');
+  return base.replace(/[^\w\s\-\.]/g, '_').replace(/\s+/g, '_');
 }
 // Intenta abrir el menú "Enviar a..." del sistema (WhatsApp, Drive, Guardar archivos...)
 // Si no está disponible, cae a descarga directa.
@@ -2532,6 +2541,8 @@ async function abrirProyecto(id) {
     state.elements = entry.elements || [];
     state.activeCableId = entry.activeCableId || null;
     state.currentProjectId = entry.id;
+    state.currentAlias = entry.alias || '';
+    const aliasInp = document.getElementById('prjAlias'); if (aliasInp) aliasInp.value = state.currentAlias;
     Object.assign(project, entry.project || {});
     syncProjectToUI();
     redraw();
@@ -2620,6 +2631,10 @@ async function refrescarPanelProyectos() {
         const v = prompt('Alias para este plano (nombre fácil):', p.alias || '');
         if (v === null) return;
         await actualizarCampoProyecto(p.id, 'alias', v.trim());
+        if (p.id === state.currentProjectId) {
+          state.currentAlias = v.trim();
+          const ai = document.getElementById('prjAlias'); if (ai) ai.value = v.trim();
+        }
         refrescarPanelProyectos();
       }));
       // Notas
@@ -2862,6 +2877,17 @@ _initFiltrosProyectos();
   const auto = document.getElementById('setDriveAuto');
   if (auto) { auto.checked = driveAutoOn(); auto.addEventListener('change', () => localStorage.setItem('digi_drive_auto', auto.checked ? '1' : '0')); }
   if (driveClientId()) setDriveStatus('configurado (toca 🔑 Conectar Drive)', '#9ca3af');
+})();
+// Campo "Nombre del archivo (alias)" en el panel de proyecto
+(function initAlias(){
+  const inp = document.getElementById('prjAlias');
+  if (!inp) return;
+  let t = null;
+  inp.addEventListener('input', () => {
+    state.currentAlias = inp.value;
+    clearTimeout(t);
+    t = setTimeout(() => { if (state.currentProjectId) actualizarCampoProyecto(state.currentProjectId, 'alias', inp.value.trim()); }, 600);
+  });
 })();
 document.getElementById('prjFecha').value = new Date().toISOString().split('T')[0];
 project.fecha = document.getElementById('prjFecha').value;
