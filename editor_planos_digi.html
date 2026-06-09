@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no, viewport-fit=cover">
-<title>Editor de Planos DIGI v6.2</title>
+<title>Editor de Planos DIGI v6.3</title>
 <meta name="theme-color" content="#1e2a3a">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -195,7 +195,7 @@
 <div class="app">
 
   <div class="topbar">
-    <span class="logo">DIGI<span class="ver">v6.2</span></span>
+    <span class="logo">DIGI<span class="ver">v6.3</span></span>
     <span class="spacer"></span>
     <button id="btnUndo" class="undo" title="Deshacer">↶</button>
     <button id="btnSettings" title="Ajustes">⚙️</button>
@@ -215,7 +215,7 @@
       <div class="logo-wrap">
         <div class="logo-main">DIGI</div>
         <div class="logo-sub">Editor de Planos</div>
-        <div class="logo-ver">v6.2</div>
+        <div class="logo-ver">v6.3</div>
       </div>
       <div class="cable-line"></div>
       <p>Carga una imagen o PDF del plano base para comenzar</p>
@@ -411,6 +411,7 @@
   <div style="font-size:11px;color:#9ca3af;margin-bottom:8px;line-height:1.4">
     Se guardan automáticamente en este navegador mientras trabajas. Toca uno para reabrirlo.
   </div>
+  <button onclick="sincronizarConNube()" style="width:100%;padding:10px;border-radius:6px;background:#0369a1;color:#e0f2fe;font-weight:600;border:none;cursor:pointer;font-size:12px;margin-bottom:10px;">🔄 Sincronizar con Drive (PC ↔ móvil)</button>
   <div id="projectsFilters" style="display:flex;gap:5px;flex-wrap:wrap;margin-bottom:10px;">
     <button class="filtro-btn" data-filtro="todos" style="flex:1;min-width:64px;padding:7px 4px;border-radius:6px;border:1px solid #2a3140;background:#2563eb;color:#fff;font-size:11px;font-weight:600;cursor:pointer;">Todos</button>
     <button class="filtro-btn" data-filtro="curso" style="flex:1;min-width:64px;padding:7px 4px;border-radius:6px;border:1px solid #2a3140;background:#1f2530;color:#e5e7eb;font-size:11px;font-weight:600;cursor:pointer;">En curso</button>
@@ -2527,6 +2528,7 @@ function autoGuardar() {
       existing.project = { ...project };
       existing.activeCableId = state.activeCableId;
       await _putProject(existing);
+      if (typeof autoSyncNube === 'function') autoSyncNube();
     } catch(e) { console.warn('autoGuardar:', e); }
   }, 1500);
 }
@@ -2860,6 +2862,121 @@ async function subirPlanoADrive(estadoLabel, silencioso) {
 window.driveConectar = driveConectar;
 window.driveDesconectar = driveDesconectar;
 window.subirPlanoADrive = subirPlanoADrive;
+
+// ── SINCRONIZACIÓN DE PROYECTOS EDITABLES (Drive) ──────────────
+const DRIVE_PROY_FOLDER = '_Proyectos';
+let _proyFolderId = null;
+
+async function _driveProyFolder() {
+  if (_proyFolderId) return _proyFolderId;
+  const rootId = await _driveEnsureFolder(DRIVE_ROOT, null);
+  _proyFolderId = await _driveEnsureFolder(DRIVE_PROY_FOLDER, rootId);
+  return _proyFolderId;
+}
+function _blobToDataUrl(blob) {
+  return new Promise(r => { const fr = new FileReader(); fr.onload = () => r(fr.result); fr.readAsDataURL(blob); });
+}
+function _thumbFromDataUrl(dataUrl) {
+  return new Promise((res) => {
+    const img = new Image();
+    img.onload = () => {
+      const t = document.createElement('canvas');
+      const ratio = img.height / img.width;
+      t.width = 240; t.height = Math.max(60, Math.round(240 * ratio));
+      t.getContext('2d').drawImage(img, 0, 0, t.width, t.height);
+      t.toBlob(b => res(b), 'image/jpeg', 0.7);
+    };
+    img.onerror = () => res(null);
+    img.src = dataUrl;
+  });
+}
+async function subirProyectoNube(entry) {
+  const folderId = await _driveProyFolder();
+  const imgDataUrl = await _blobToDataUrl(entry.imgBlob);
+  const payload = {
+    id: entry.id, fecha: entry.fecha, title: entry.title,
+    estado: entry.estado || 'recibido', alias: entry.alias || '', notas: entry.notas || '',
+    bgWidth: entry.bgWidth, bgHeight: entry.bgHeight,
+    elements: entry.elements, project: entry.project, activeCableId: entry.activeCableId,
+    imgDataUrl
+  };
+  const blob = new Blob([JSON.stringify(payload)], { type: 'application/json' });
+  const fname = entry.id + '.json';
+  const token = await _driveGetToken(false);
+  const q = `name='${fname}' and '${folderId}' in parents and trashed=false`;
+  const sr = await _driveFetch('https://www.googleapis.com/drive/v3/files?q=' + encodeURIComponent(q) + '&fields=files(id)');
+  const ex = (await sr.json()).files;
+  if (ex && ex.length) {
+    await fetch('https://www.googleapis.com/upload/drive/v3/files/' + ex[0].id + '?uploadType=media',
+      { method: 'PATCH', headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' }, body: blob });
+  } else {
+    const form = new FormData();
+    form.append('metadata', new Blob([JSON.stringify({ name: fname, parents: [folderId] })], { type: 'application/json' }));
+    form.append('file', blob);
+    await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart',
+      { method: 'POST', headers: { Authorization: 'Bearer ' + token }, body: form });
+  }
+}
+async function listarProyectosNube() {
+  const folderId = await _driveProyFolder();
+  const q = `'${folderId}' in parents and trashed=false and mimeType='application/json'`;
+  const r = await _driveFetch('https://www.googleapis.com/drive/v3/files?q=' + encodeURIComponent(q) + '&fields=files(id,name)&pageSize=1000');
+  return (await r.json()).files || [];
+}
+async function descargarProyectoNube(fileId) {
+  const r = await _driveFetch('https://www.googleapis.com/drive/v3/files/' + fileId + '?alt=media');
+  const data = await r.json();
+  const imgBlob = await (await fetch(data.imgDataUrl)).blob();
+  const thumbBlob = await _thumbFromDataUrl(data.imgDataUrl);
+  await _putProject({
+    id: data.id, fecha: data.fecha, title: data.title,
+    estado: data.estado || 'recibido', alias: data.alias || '', notas: data.notas || '',
+    bgWidth: data.bgWidth, bgHeight: data.bgHeight, imgBlob, thumbBlob,
+    elements: data.elements || [], project: data.project || {}, activeCableId: data.activeCableId || null
+  });
+  return data.id;
+}
+async function sincronizarConNube() {
+  if (!driveClientId()) { toast('Configura Drive en Ajustes'); return; }
+  toast('🔄 Sincronizando...');
+  try {
+    await _driveGetToken(false).catch(() => _driveGetToken(true));
+    const locales = await listarProyectos();
+    const nubeFiles = await listarProyectosNube();
+    const nubeMap = {};
+    nubeFiles.forEach(f => { nubeMap[f.name.replace(/\.json$/, '')] = f.id; });
+    const localMap = {}; locales.forEach(p => localMap[p.id] = p);
+    let subidos = 0, bajados = 0;
+    for (const p of locales) { if (!nubeMap[p.id]) { await subirProyectoNube(p); subidos++; } }
+    for (const id in nubeMap) { if (!localMap[id]) { await descargarProyectoNube(nubeMap[id]); bajados++; } }
+    for (const p of locales) {
+      if (nubeMap[p.id]) {
+        const r = await _driveFetch('https://www.googleapis.com/drive/v3/files/' + nubeMap[p.id] + '?alt=media');
+        const remote = await r.json();
+        if ((remote.fecha || '') > (p.fecha || '')) { await descargarProyectoNube(nubeMap[p.id]); bajados++; }
+        else if ((p.fecha || '') > (remote.fecha || '')) { await subirProyectoNube(p); subidos++; }
+      }
+    }
+    refrescarPanelProyectos();
+    toast(`✓ Sincronizado · ${subidos}↑ · ${bajados}↓`);
+  } catch (e) {
+    toast('Error sync: ' + e.message);
+    console.warn('sincronizarConNube:', e);
+  }
+}
+window.sincronizarConNube = sincronizarConNube;
+
+// Auto-sync del proyecto actual a la nube (debounced) tras editar
+let _nubeSyncTimer = null;
+function autoSyncNube() {
+  if (!driveClientId() || localStorage.getItem('digi_drive_connected') !== '1') return;
+  if (!state.currentProjectId) return;
+  clearTimeout(_nubeSyncTimer);
+  _nubeSyncTimer = setTimeout(async () => {
+    try { const e = await _getProject(state.currentProjectId); if (e) await subirProyectoNube(e); }
+    catch(err) { console.warn('autoSyncNube:', err); }
+  }, 12000);
+}
 
 // ============================================================
 // INIT
