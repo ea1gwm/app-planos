@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no, viewport-fit=cover">
-<title>Editor de Planos DIGI v6.8</title>
+<title>Editor de Planos DIGI v6.9</title>
 <meta name="theme-color" content="#1e2a3a">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -195,7 +195,7 @@
 <div class="app">
 
   <div class="topbar">
-    <span class="logo">DIGI<span class="ver">v6.8</span></span>
+    <span class="logo">DIGI<span class="ver">v6.9</span></span>
     <button id="btnHome" title="Ir al inicio" style="display:none">🏠</button>
     <span id="topbarTitle" style="font-size:12px;font-weight:600;color:#cbd5e1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:40vw;"></span>
     <span class="spacer"></span>
@@ -217,7 +217,7 @@
       <div class="logo-wrap">
         <div class="logo-main">DIGI</div>
         <div class="logo-sub">Editor de Planos</div>
-        <div class="logo-ver">v6.8</div>
+        <div class="logo-ver">v6.9</div>
       </div>
       <div class="cable-line"></div>
       <p>Carga una imagen o PDF del plano base para comenzar</p>
@@ -718,10 +718,10 @@ function getActiveCable() { return state.elements.find(e => e.id === state.activ
 function updateActiveCableUI() {
   const bar = document.getElementById('activeCableBar');
   const c = getActiveCable();
-  if (!c) { bar.style.display = 'none'; return; }
+  if (!c || !state.bgLoaded) { bar.style.display = 'none'; return; }
   bar.style.display = 'flex';
   document.getElementById('activeCableSw').style.background = c.color;
-  document.getElementById('activeCableLabel').textContent = 'Activo: ' + c.cableType;
+  document.getElementById('activeCableLabel').textContent = 'Cable activo: ' + c.cableType + ' · toca para quitar';
 }
 
 // ============================================================
@@ -1043,7 +1043,8 @@ function isColorDark(hex) {
 }
 // Detecta el color del cable según el número inicial del texto (ej "12FO COMEL" → 12KP → azul)
 function colorCablePorTexto(texto) {
-  const m = (texto || '').match(/^(\d+)/);
+  // Requiere número seguido de FO o KP (con o sin espacio, mayús/minús). Ej: "12FO", "24 kp", "96Fo"
+  const m = (texto || '').match(/^(\d+)\s*(FO|KP)\b/i);
   if (!m) return null;
   const num = m[1];
   const ct = CABLE_TYPES.find(c => c.id.startsWith(num));
@@ -1432,6 +1433,7 @@ function onPointerDown(evt) {
     if (hitEl && hitEl.id === state.selectedId && hitEl.x !== undefined) {
       dragState.type = 'placement-move';
       dragState.placedEl = hitEl;
+      dragState.esNuevo = false; // solo se mueve: no reabrir popup al soltar
       dragState.elX0 = hitEl.x;
       dragState.elY0 = hitEl.y;
       pushHistory();
@@ -1444,6 +1446,7 @@ function onPointerDown(evt) {
       state.selectedId = newEl.id;
       dragState.type = 'placement-move';
       dragState.placedEl = newEl;
+      dragState.esNuevo = true; // recién creado: abrir popup al soltar para escribir
       dragState.elX0 = newEl.x;
       dragState.elY0 = newEl.y;
       redraw();
@@ -1583,8 +1586,8 @@ function onPointerUp(evt) {
 
   if (dragState.type === 'placement-move') {
     const el = dragState.placedEl;
-    // Open popup only for elements that need configuration (tramo, text, elem, nota)
-    if (el.type === 'tramo' || el.type === 'text' || el.type === 'elem' || el.type === 'nota') {
+    // Abrir popup SOLO si el elemento es recién creado (no al solo moverlo)
+    if (dragState.esNuevo && (el.type === 'tramo' || el.type === 'text' || el.type === 'elem' || el.type === 'nota')) {
       openElemPopup(el, evt);
     }
     dragState = null;
@@ -2195,11 +2198,12 @@ function irAInicio() {
   if (state.pendingPath) finishPath();
   state.bgLoaded = false;
   state.tool = null; state.toolData = {};
+  state.activeCableId = null;
   closePopup(); closeStackPicker();
   document.querySelectorAll('.panel.open').forEach(p => p.classList.remove('open'));
   document.getElementById('emptyStage').style.display = 'flex';
   document.getElementById('canvasWrap').style.visibility = 'hidden';
-  updateTopbar(); updateToolUI();
+  updateActiveCableUI(); updateTopbar(); updateToolUI();
 }
 document.getElementById('btnHome').onclick = irAInicio;
 
