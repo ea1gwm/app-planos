@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no, viewport-fit=cover">
-<title>Editor de Planos DIGI v7.0</title>
+<title>Editor de Planos DIGI v7.1</title>
 <meta name="theme-color" content="#1e2a3a">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -195,7 +195,7 @@
 <div class="app">
 
   <div class="topbar">
-    <span class="logo">DIGI<span class="ver">v7.0</span></span>
+    <span class="logo">DIGI<span class="ver">v7.1</span></span>
     <button id="btnHome" title="Ir al inicio" style="display:none">🏠</button>
     <span id="topbarTitle" style="font-size:12px;font-weight:600;color:#cbd5e1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:40vw;"></span>
     <span class="spacer"></span>
@@ -217,7 +217,7 @@
       <div class="logo-wrap">
         <div class="logo-main">DIGI</div>
         <div class="logo-sub">Editor de Planos</div>
-        <div class="logo-ver">v7.0</div>
+        <div class="logo-ver">v7.1</div>
       </div>
       <div class="cable-line"></div>
       <p>Carga una imagen o PDF del plano base para comenzar</p>
@@ -2048,6 +2048,8 @@ document.getElementById('btnLoad').onclick = () => document.getElementById('file
 document.getElementById('fileInput').onchange = async (e) => {
   const file = e.target.files[0];
   if (!file) return;
+  // Guardar el nombre del archivo (sin extensión) para usarlo como nombre del proyecto
+  state._pendingFilename = file.name.replace(/\.[^.]+$/, '').trim();
   if (file.type.startsWith('image/')) await loadImage(file);
   else if (file.type === 'application/pdf') await loadPdf(file);
   else toast('Formato no soportado');
@@ -2554,16 +2556,22 @@ async function crearProyectoActual() {
   const thumbBlob = await new Promise(r => t.toBlob(r, 'image/jpeg', 0.7));
   const id = 'p' + Date.now();
   state.currentProjectId = id;
+  // Nombre inicial = nombre del archivo cargado (editable luego en Datos del proyecto)
+  const aliasInicial = state._pendingFilename || '';
+  state._pendingFilename = '';
+  state.currentAlias = aliasInicial;
+  const aliasInp = document.getElementById('prjAlias'); if (aliasInp) aliasInp.value = aliasInicial;
   await _putProject({
     id, fecha: new Date().toISOString(),
     title: getTitle(),
-    estado: 'recibido', alias: '', notas: '',
+    estado: 'recibido', alias: aliasInicial, notas: '',
     bgWidth: state.bgWidth, bgHeight: state.bgHeight,
     imgBlob, thumbBlob,
     elements: state.elements,
     project: { ...project },
     activeCableId: state.activeCableId
   });
+  updateTopbar();
 }
 
 // Estados y sus colores/etiquetas
@@ -2640,6 +2648,10 @@ async function refrescarPanelProyectos() {
     // Aplicar filtro
     if (_filtroProyectos !== 'todos') {
       list = list.filter(p => (p.estado || 'recibido') === _filtroProyectos);
+    }
+    // El proyecto en uso siempre el primero de la lista
+    if (state.currentProjectId) {
+      list.sort((a, b) => (a.id === state.currentProjectId ? -1 : 0) - (b.id === state.currentProjectId ? -1 : 0));
     }
     if (list.length === 0) {
       cont.innerHTML = '<div style="color:#6b7280;font-size:12px;padding:10px">' +
