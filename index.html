@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no, viewport-fit=cover">
-<title>Editor de Planos DIGI v6.9</title>
+<title>Editor de Planos DIGI v7.0</title>
 <meta name="theme-color" content="#1e2a3a">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -195,7 +195,7 @@
 <div class="app">
 
   <div class="topbar">
-    <span class="logo">DIGI<span class="ver">v6.9</span></span>
+    <span class="logo">DIGI<span class="ver">v7.0</span></span>
     <button id="btnHome" title="Ir al inicio" style="display:none">🏠</button>
     <span id="topbarTitle" style="font-size:12px;font-weight:600;color:#cbd5e1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:40vw;"></span>
     <span class="spacer"></span>
@@ -217,7 +217,7 @@
       <div class="logo-wrap">
         <div class="logo-main">DIGI</div>
         <div class="logo-sub">Editor de Planos</div>
-        <div class="logo-ver">v6.9</div>
+        <div class="logo-ver">v7.0</div>
       </div>
       <div class="cable-line"></div>
       <p>Carga una imagen o PDF del plano base para comenzar</p>
@@ -1049,6 +1049,13 @@ function colorCablePorTexto(texto) {
   const num = m[1];
   const ct = CABLE_TYPES.find(c => c.id.startsWith(num));
   return ct ? ct.color : null;
+}
+// Palabras que activan fondo amarillo automático en las anotaciones
+const PALABRAS_AMARILLO = ['cono','aparcamiento','ocupacion','ocupacion asfalto','asfaltada','propiedad privada'];
+function fondoAutoPorTexto(texto) {
+  const t = (texto || '').toLowerCase()
+    .replace(/[áàä]/g,'a').replace(/[éèë]/g,'e').replace(/[íìï]/g,'i').replace(/[óòö]/g,'o').replace(/[úùü]/g,'u');
+  return PALABRAS_AMARILLO.some(p => t.includes(p)) ? '#fef08a' : null;
 }
 function updateTopbar() {
   const home = document.getElementById('btnHome');
@@ -1987,6 +1994,13 @@ document.getElementById('popupLabel').addEventListener('input', (e) => {
     document.querySelectorAll('.text-color-btn').forEach(x => x.style.outline = (x.dataset.color === (popupElement.textColor||'')) ? '2px solid #fbbf24' : 'none');
     document.getElementById('popupTextCableColors').querySelectorAll('.text-color-cable-btn').forEach(x => x.style.outline = (x.dataset.color === (popupElement.textColor||'')) ? '2px solid #fbbf24' : 'none');
   }
+  // Fondo amarillo automático para palabras clave (Cono, Aparcamiento, Ocupación, Asfaltada...)
+  if (!popupElement._bgManual) {
+    const amarillo = fondoAutoPorTexto(e.target.value);
+    if (amarillo) { popupElement.bgHighlight = amarillo; popupElement.bgSolid = null; }
+    else if (popupElement.bgHighlight === '#fef08a') { popupElement.bgHighlight = null; }
+    document.querySelectorAll('.bg-color-btn').forEach(x => x.style.outline = (x.dataset.color === (popupElement.bgHighlight||'')) ? '2px solid #2563eb' : 'none');
+  }
   // Negrita: ya no se auto-cambia con el cable. Por defecto los textos nuevos van en negrita;
   // el usuario decide quitarla manualmente desmarcando la casilla.
   redraw();
@@ -2649,8 +2663,8 @@ async function refrescarPanelProyectos() {
       const fechaTxt = new Date(p.fecha).toLocaleString('es-ES', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' });
       const isActive = p.id === state.currentProjectId ? ' <span style="color:#22c55e;font-size:10px">● actual</span>' : '';
       const nombreMostrar = p.alias ? p.alias : (p.title || 'Sin título');
-      info.innerHTML = `<div style="font-weight:600;font-size:13px;color:#e5e7eb;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${nombreMostrar}${isActive}</div>
-        ${p.alias ? `<div style="font-size:9px;color:#6b7280;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${p.title||''}</div>` : ''}
+      info.innerHTML = `<div title="${nombreMostrar.replace(/"/g,'&quot;')}" style="font-weight:600;font-size:13px;color:#e5e7eb;word-break:break-word;line-height:1.25">${nombreMostrar}${isActive}</div>
+        ${p.alias ? `<div style="font-size:9px;color:#6b7280;word-break:break-word">${p.title||''}</div>` : ''}
         <div style="margin-top:3px;"><span style="display:inline-block;font-size:9px;font-weight:700;color:#fff;background:${est.color};padding:1px 7px;border-radius:10px;">${est.label}</span>
         <span style="font-size:10px;color:#9ca3af;margin-left:5px">${fechaTxt}</span></div>
         ${p.notas ? `<div style="font-size:10px;color:#cbd5e1;margin-top:3px;font-style:italic;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">📝 ${p.notas}</div>` : ''}`;
