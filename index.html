@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no, viewport-fit=cover">
-<title>Editor de Planos DIGI v7.1</title>
+<title>Editor de Planos DIGI v7.2</title>
 <meta name="theme-color" content="#1e2a3a">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -195,7 +195,7 @@
 <div class="app">
 
   <div class="topbar">
-    <span class="logo">DIGI<span class="ver">v7.1</span></span>
+    <span class="logo">DIGI<span class="ver">v7.2</span></span>
     <button id="btnHome" title="Ir al inicio" style="display:none">🏠</button>
     <span id="topbarTitle" style="font-size:12px;font-weight:600;color:#cbd5e1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:40vw;"></span>
     <span class="spacer"></span>
@@ -217,7 +217,7 @@
       <div class="logo-wrap">
         <div class="logo-main">DIGI</div>
         <div class="logo-sub">Editor de Planos</div>
-        <div class="logo-ver">v7.1</div>
+        <div class="logo-ver">v7.2</div>
       </div>
       <div class="cable-line"></div>
       <p>Carga una imagen o PDF del plano base para comenzar</p>
@@ -469,6 +469,18 @@
     <input type="text" id="prjCableText" placeholder="Ej: 12FO COMEL">
   </div>
 
+  <h2 style="margin-top:16px;">🔧 Grapeo (cámaras y arquetas)</h2>
+  <div style="display:flex;gap:8px;">
+    <div class="field" style="flex:1;">
+      <label>Nº cámaras (CR)</label>
+      <input type="number" id="prjNumCr" min="0" step="1" value="0">
+    </div>
+    <div class="field" style="flex:1;">
+      <label>Nº arquetas (ARQ)</label>
+      <input type="number" id="prjNumArq" min="0" step="1" value="0">
+    </div>
+  </div>
+
   <h2 style="margin-top:16px;">📐 Cálculos</h2>
   <div class="calc" id="calcBox"></div>
 
@@ -548,7 +560,7 @@ const state = {
   history: [],
 };
 const settings = { equipo: '', nombre: '', grapeoCr: 5, grapeoArq: 3, defaultLetra: 'A', defaultTextSize: 14 };
-const project = { title: '', name: '', suc: '', empalmes: '', fecha: '', cableText: '', addCajetin: false };
+const project = { title: '', name: '', suc: '', empalmes: '', fecha: '', cableText: '', addCajetin: false, numArq: 0, numCr: 0 };
 
 let spaceDown = false;
 let dragState = null;
@@ -751,6 +763,8 @@ function syncProjectFromUI() {
   project.fecha = document.getElementById('prjFecha').value;
   project.cableText = document.getElementById('prjCableText').value;
   project.addCajetin = document.getElementById('prjAddCajetin').checked;
+  project.numCr = +document.getElementById('prjNumCr').value || 0;
+  project.numArq = +document.getElementById('prjNumArq').value || 0;
   updateCalc();
 }
 
@@ -841,6 +855,17 @@ function updateCalc() {
     html += `<div class="row" style="font-size:10px;color:#6b7280;margin-bottom:2px"><span>${letraStr}</span></div>`;
   }
   html += mallaCableRows;
+
+  // Grapeo manual (Nº CR y Nº ARQ × metros de grapeo)
+  const grapeoCrTot = (project.numCr || 0) * (settings.grapeoCr || 0);
+  const grapeoArqTot = (project.numArq || 0) * (settings.grapeoArq || 0);
+  const grapeoTotal = grapeoCrTot + grapeoArqTot;
+  if (grapeoTotal > 0) {
+    html += `<div class="row" style="margin-top:8px;border-top:1px solid #2a2f3a;padding-top:6px;">
+      <span style="font-size:11px;color:#9ca3af">GRAPEO (${project.numCr||0} CR + ${project.numArq||0} ARQ)</span>
+      <span><b style="font-size:14px;color:#fbbf24">${grapeoTotal} m</b></span></div>
+      <div class="row" style="font-size:10px;color:#6b7280;margin-bottom:2px"><span>CR: ${grapeoCrTot} m &nbsp;·&nbsp; ARQ: ${grapeoArqTot} m</span></div>`;
+  }
 
   if (perCable.length === 0) {
     html += `<div class="row" style="margin-top:8px"><span>Cable</span><span>0 m</span></div>`;
@@ -2258,7 +2283,7 @@ window.closePanel = closePanel;
 
 ['setEquipo','setNombre','setGrapeoCr','setGrapeoArq','setDefaultLetra','setDefaultTextSize'].forEach(id => document.getElementById(id).addEventListener('input', syncSettingsFromUI));
 document.getElementById('setDefaultLetra').addEventListener('change', syncSettingsFromUI);
-['prjTitle','prjName','prjSuc','prjEmpalmes','prjFecha','prjCableText'].forEach(id => document.getElementById(id).addEventListener('input', syncProjectFromUI));
+['prjTitle','prjName','prjSuc','prjEmpalmes','prjFecha','prjCableText','prjNumCr','prjNumArq'].forEach(id => document.getElementById(id).addEventListener('input', syncProjectFromUI));
 document.getElementById('prjAddCajetin').addEventListener('change', syncProjectFromUI);
 
 // ============================================================
@@ -2438,6 +2463,12 @@ function drawCajetin(ctx, x, y, w, h) {
     ctx.fillText(`  ${lbl}: ${c.total} m  (tramos ${c.tramos} · valonas ${c.valonas} · grapeo ${c.grapeo})`, px, py);
     py += 17;
   });
+  // Grapeo manual por nº de CR/ARQ
+  const grapeoMan = (project.numCr || 0) * (settings.grapeoCr || 0) + (project.numArq || 0) * (settings.grapeoArq || 0);
+  if (grapeoMan > 0) {
+    ctx.font = 'bold 13px Arial';
+    ctx.fillText(`GRAPEO (${project.numCr||0} CR + ${project.numArq||0} ARQ): ${grapeoMan} m`, px, py); py += 18;
+  }
 }
 
 // ============================================================
@@ -2770,6 +2801,8 @@ function syncProjectToUI() {
     if (el) el.value = project[k] || '';
   });
   if (document.getElementById('prjAddCajetin')) document.getElementById('prjAddCajetin').checked = !!project.addCajetin;
+  if (document.getElementById('prjNumCr')) document.getElementById('prjNumCr').value = project.numCr || 0;
+  if (document.getElementById('prjNumArq')) document.getElementById('prjNumArq').value = project.numArq || 0;
 }
 
 // Exportar el proyecto como archivo .dproject (JSON con imagen embebida)
