@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no, viewport-fit=cover">
-<title>Editor de Planos DIGI v7.2</title>
+<title>Editor de Planos DIGI v7.3</title>
 <meta name="theme-color" content="#1e2a3a">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -195,7 +195,7 @@
 <div class="app">
 
   <div class="topbar">
-    <span class="logo">DIGI<span class="ver">v7.2</span></span>
+    <span class="logo">DIGI<span class="ver">v7.3</span></span>
     <button id="btnHome" title="Ir al inicio" style="display:none">🏠</button>
     <span id="topbarTitle" style="font-size:12px;font-weight:600;color:#cbd5e1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:40vw;"></span>
     <span class="spacer"></span>
@@ -217,7 +217,7 @@
       <div class="logo-wrap">
         <div class="logo-main">DIGI</div>
         <div class="logo-sub">Editor de Planos</div>
-        <div class="logo-ver">v7.2</div>
+        <div class="logo-ver">v7.3</div>
       </div>
       <div class="cable-line"></div>
       <p>Carga una imagen o PDF del plano base para comenzar</p>
@@ -682,6 +682,7 @@ function buildToolbar() {
     { id: 'text', label: '📝 Texto' },
     { id: 'xmark', label: '❌ X anular' },
     { id: 'nota', label: '✱ Asterisco/nota' },
+    { id: 'cover', label: '⬜ Tapar texto' },
   ].forEach(a => {
     const b = document.createElement('button');
     b.className = 'tool';
@@ -1161,7 +1162,12 @@ function renderElement(svg, el) {
     }
     svg.appendChild(g);
   } else if (el.type === 'highlight') {
-    svg.appendChild(svgEl('rect', { x: Math.min(el.x1, el.x2), y: Math.min(el.y1, el.y2), width: Math.abs(el.x2 - el.x1), height: Math.abs(el.y2 - el.y1), fill: el.color || '#fef08a', style: 'mix-blend-mode: multiply', class: 'marker' + sel, 'data-elem-id': id }));
+    if (el.cover) {
+      // Tapar: rectángulo blanco opaco para ocultar texto del plano base
+      svg.appendChild(svgEl('rect', { x: Math.min(el.x1, el.x2), y: Math.min(el.y1, el.y2), width: Math.abs(el.x2 - el.x1), height: Math.abs(el.y2 - el.y1), fill: '#ffffff', stroke: (isSel ? '#2563eb' : '#d1d5db'), 'stroke-width': isSel ? 1.5 : 0.5, class: 'marker' + sel, 'data-elem-id': id, 'data-cover': '1' }));
+    } else {
+      svg.appendChild(svgEl('rect', { x: Math.min(el.x1, el.x2), y: Math.min(el.y1, el.y2), width: Math.abs(el.x2 - el.x1), height: Math.abs(el.y2 - el.y1), fill: el.color || '#fef08a', style: 'mix-blend-mode: multiply', class: 'marker' + sel, 'data-elem-id': id }));
+    }
   } else if (el.type === 'text') {
     const g = svgEl('g', { class: 'marker' + sel, 'data-elem-id': id });
     const lines = (el.text || '').split('\n');
@@ -1571,7 +1577,7 @@ function onPointerMove(evt) {
 
   // Resolve pending into concrete action
   if (dragState.type === 'pending' && dragState.moved) {
-    const isHlTool = state.tool === 'hl-yellow' || state.tool === 'hl-orange' || state.tool === 'hl-cable';
+    const isHlTool = state.tool === 'hl-yellow' || state.tool === 'hl-orange' || state.tool === 'hl-cable' || state.tool === 'cover';
     if (isHlTool) dragState.type = 'highlight';
     else if (dragState.hitEl && dragState.hitEl.x !== undefined && !state.tool) {
       dragState.type = 'elem-move';
@@ -1600,7 +1606,8 @@ function onPointerMove(evt) {
   } else if (dragState.type === 'highlight') {
     if (!dragState.hlEl) {
       pushHistory();
-      dragState.hlEl = { id: newId(), type: 'highlight', color: state.toolData.color, x1: dragState.startStageX, y1: dragState.startStageY, x2: dragState.startStageX, y2: dragState.startStageY };
+      const esCover = state.tool === 'cover';
+      dragState.hlEl = { id: newId(), type: 'highlight', cover: esCover, color: esCover ? '#ffffff' : state.toolData.color, x1: dragState.startStageX, y1: dragState.startStageY, x2: dragState.startStageX, y2: dragState.startStageY };
       state.elements.push(dragState.hlEl);
     }
     const sp = getStagePoint(coords.x, coords.y);
@@ -2305,9 +2312,16 @@ async function generatePlanBlob(mime = 'image/png', quality) {
   const ctx = c.getContext('2d');
   ctx.fillStyle = 'white'; ctx.fillRect(0, 0, c.width, c.height);
   ctx.drawImage(document.getElementById('bgCanvas'), 0, 0);
+  // Primero los "tapar" (blanco opaco) en modo normal, para ocultar el texto del plano
+  state.elements.forEach(el => {
+    if (el.type === 'highlight' && el.cover) {
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(Math.min(el.x1, el.x2), Math.min(el.y1, el.y2), Math.abs(el.x2 - el.x1), Math.abs(el.y2 - el.y1));
+    }
+  });
   ctx.globalCompositeOperation = 'multiply';
   state.elements.forEach(el => {
-    if (el.type === 'highlight') {
+    if (el.type === 'highlight' && !el.cover) {
       ctx.fillStyle = el.color || '#fef08a';
       ctx.fillRect(Math.min(el.x1, el.x2), Math.min(el.y1, el.y2), Math.abs(el.x2 - el.x1), Math.abs(el.y2 - el.y1));
     } else if (el.type === 'text' && el.bgHighlight) {
@@ -2326,6 +2340,8 @@ async function generatePlanBlob(mime = 'image/png', quality) {
   const clone = svg.cloneNode(true);
   clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
   clone.querySelectorAll('rect[style*="multiply"]').forEach(n => n.remove());
+  // Los "tapar" ya se pintaron en el canvas; quitar del SVG (evita el borde)
+  clone.querySelectorAll('[data-cover]').forEach(n => n.remove());
   // No exportar los tiradores de redimensión
   clone.querySelectorAll('[data-resize-id]').forEach(n => n.remove());
   const svgStr = new XMLSerializer().serializeToString(clone);
