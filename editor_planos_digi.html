@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no, viewport-fit=cover">
-<title>Editor de Planos DIGI v7.3</title>
+<title>Editor de Planos DIGI v8.0</title>
 <meta name="theme-color" content="#1e2a3a">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -195,7 +195,7 @@
 <div class="app">
 
   <div class="topbar">
-    <span class="logo">DIGI<span class="ver">v7.3</span></span>
+    <span class="logo">DIGI<span class="ver">v8.0</span></span>
     <button id="btnHome" title="Ir al inicio" style="display:none">🏠</button>
     <span id="topbarTitle" style="font-size:12px;font-weight:600;color:#cbd5e1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:40vw;"></span>
     <span class="spacer"></span>
@@ -205,10 +205,9 @@
     <input type="file" id="fileInput" accept="image/*,application/pdf" style="display:none">
     <button id="btnLoad" title="Cargar plano">📂</button>
     <button id="btnRecientes" title="Proyectos recientes">🕒</button>
-    <button id="btnExport" title="Descargar PNG (calidad máxima)">💾PNG</button>
+    <button id="btnExport" title="Descargar PNG (calidad máxima)" style="display:none">💾PNG</button>
     <button id="btnExportJpg" title="Descargar JPG (más ligero)">💾JPG</button>
     <button id="btnExportPdf" title="Descargar PDF (para subir al sistema)">💾PDF</button>
-    <button id="btnDrive" title="Subir a Google Drive">☁️</button>
     <button id="btnShare" title="Compartir (JPG)" style="display:none">📤</button>
   </div>
 
@@ -217,7 +216,7 @@
       <div class="logo-wrap">
         <div class="logo-main">DIGI</div>
         <div class="logo-sub">Editor de Planos</div>
-        <div class="logo-ver">v7.3</div>
+        <div class="logo-ver">v8.0</div>
       </div>
       <div class="cable-line"></div>
       <p>Carga una imagen o PDF del plano base para comenzar</p>
@@ -253,10 +252,6 @@
     <div class="tool-row" id="drawerCables"></div>
   </div>
   <div class="drawer-section">
-    <div class="label">Resaltado con color del cable</div>
-    <div class="tool-row" id="drawerCableHl"></div>
-  </div>
-  <div class="drawer-section">
     <div class="label">Tramos (metros + letra)</div>
     <div class="tool-row" id="drawerTramos"></div>
   </div>
@@ -272,25 +267,6 @@
     </div>
     <div style="font-size:10px;color:#4b5563;margin-top:4px;line-height:1.4">
       Coloca asteriscos ✱ en el mapa, toca cada uno para escribir su nota, y pulsa aquí para generar el recuadro con todas las notas numeradas.
-    </div>
-  </div>
-  <div class="drawer-section" style="border-top:1px solid #2a2f3a;margin-top:4px;padding-top:10px">
-    <div class="label">🔍 Auto-detección (OCR)</div>
-    <div style="font-size:10px;color:#6b7280;margin-bottom:8px;line-height:1.5">
-      Los planos DIGI son imagen — primero ejecuta el OCR (1-3 min, solo la primera vez), luego marca los elementos detectados.
-    </div>
-    <div class="tool-row" style="flex-wrap:wrap;gap:6px">
-      <button class="tool" style="background:#2563eb;color:white;font-size:12px" onclick="ejecutarOCR();closeDrawer()">▶ Ejecutar OCR</button>
-    </div>
-    <div class="tool-row" style="flex-wrap:wrap;gap:6px;margin-top:8px">
-      <button class="tool" style="background:#854d0e;color:#fef9c3" onclick="detectarPatronPDF('arq')">🟡 ARQ</button>
-      <button class="tool" style="background:#854d0e;color:#fef9c3" onclick="detectarPatronPDF('cr')">🟡 CR</button>
-      <button class="tool" style="background:#9a3412;color:#fed7aa" onclick="detectarPatronPDF('empalme')">🟠 0xE...</button>
-      <button class="tool" style="background:#854d0e;color:#fef9c3" onclick="detectarPatronPDF('cto')">🟡 CTO</button>
-      <button class="tool" style="background:#854d0e;color:#fef9c3" onclick="detectarPatronPDF('poste')">🟡 L...</button>
-    </div>
-    <div style="font-size:10px;color:#4b5563;margin-top:6px;line-height:1.4">
-      Toca sobre cualquier marca incorrecta para borrarla. El OCR puede tener errores en mapas complejos — revisa el resultado.
     </div>
   </div>
 </div>
@@ -362,14 +338,6 @@
   <button class="close" onclick="closePanel('settingsPanel')">✕</button>
   <h2>⚙️ Ajustes</h2>
   <div class="field">
-    <label>Equipo</label>
-    <input type="text" id="setEquipo" placeholder="Ej: CG1">
-  </div>
-  <div class="field">
-    <label>Nombre del encargado</label>
-    <input type="text" id="setNombre" placeholder="Ej: Braulio López Pardavila">
-  </div>
-  <div class="field">
     <label>Letra de tramo por defecto</label>
     <select id="setDefaultLetra">
       <option value="A">A</option><option value="B">B</option><option value="F">F</option>
@@ -381,32 +349,19 @@
     <label>Tamaño texto por defecto (px)</label>
     <input type="number" id="setDefaultTextSize" value="14" min="8" max="48">
   </div>
-  <h2 style="margin-top:20px;">Grapeo (editable según tamaño)</h2>
-  <div class="field">
-    <label>Grapeo CR (m)</label>
-    <input type="number" id="setGrapeoCr" value="5">
-  </div>
-  <div class="field">
-    <label>Grapeo ARQ (m)</label>
-    <input type="number" id="setGrapeoArq" value="3">
+  <div class="field check" style="margin-top:8px;">
+    <input type="checkbox" id="setMostrarPng">
+    <label for="setMostrarPng">Mostrar botón de descarga PNG</label>
   </div>
 
-  <h2 style="margin-top:20px;">☁️ Google Drive</h2>
+  <h2 style="margin-top:20px;">☁️ Copia de seguridad (Drive)</h2>
   <div style="font-size:11px;color:#9ca3af;margin-bottom:8px;line-height:1.4">
-    Sube los planos a carpetas <b>Planos DIGI / Recibido · En curso · Terminado · Enviado</b> en tu Drive, accesibles desde el PC.
-  </div>
-  <div class="field">
-    <label>Client ID de Google (OAuth web)</label>
-    <input type="text" id="setDriveClientId" placeholder="xxxxx.apps.googleusercontent.com">
+    Conecta Drive para sincronizar tus proyectos editables entre el móvil y el PC (botón 🔄 en 🕒 Recientes). Sirve también de copia de seguridad.
   </div>
   <div id="driveStatus" style="font-size:11px;color:#9ca3af;margin-bottom:8px;">Estado: sin conectar</div>
   <div style="display:flex;gap:8px;flex-wrap:wrap;">
     <button onclick="driveConectar()" style="flex:1;min-width:120px;padding:9px;border-radius:6px;background:#2563eb;color:#fff;font-weight:600;border:none;cursor:pointer;font-size:12px;">🔑 Conectar Drive</button>
     <button onclick="driveDesconectar()" style="flex:1;min-width:120px;padding:9px;border-radius:6px;background:#1f2530;color:#e5e7eb;font-weight:600;border:none;cursor:pointer;font-size:12px;">Desconectar</button>
-  </div>
-  <div class="field check" style="margin-top:10px;">
-    <input type="checkbox" id="setDriveAuto">
-    <label for="setDriveAuto">Subir a Drive automáticamente al cambiar estado</label>
   </div>
 </div>
 
@@ -440,55 +395,17 @@
   <button class="close" onclick="closePanel('projectPanel')">✕</button>
   <h2>📋 Datos del proyecto</h2>
   <div class="field">
-    <label>📄 Nombre del archivo (Drive / descargas)</label>
+    <label>📄 Nombre del archivo</label>
     <input type="text" id="prjAlias" placeholder="Ej: Brión Calle Real">
-    <div style="font-size:10px;color:#6b7280;margin-top:3px;">Este nombre se usa al subir a Drive y al descargar. Si lo dejas vacío usa el título de abajo.</div>
-  </div>
-  <div class="field">
-    <label>Título del plano (auto si vacío)</label>
-    <input type="text" id="prjTitle" placeholder="Auto: Plano Suc XXX 12FO">
-  </div>
-  <div class="field">
-    <label>Proyecto</label>
-    <input type="text" id="prjName" placeholder="Ej: BRIÓN (AMES ÁRBOL 1)">
-  </div>
-  <div class="field">
-    <label>SUC (varias separadas por coma)</label>
-    <input type="text" id="prjSuc" placeholder="Ej: 12345">
-  </div>
-  <div class="field">
-    <label>Empalmes (para título si no hay SUC)</label>
-    <input type="text" id="prjEmpalmes" placeholder="Ej: 01E5173-131205">
+    <div style="font-size:10px;color:#6b7280;margin-top:3px;">Nombre con el que se guarda al descargar/compartir.</div>
   </div>
   <div class="field">
     <label>Fecha</label>
     <input type="date" id="prjFecha">
   </div>
-  <div class="field">
-    <label>Texto cajetín (Tipo cable, capa, fabricante)</label>
-    <input type="text" id="prjCableText" placeholder="Ej: 12FO COMEL">
-  </div>
 
-  <h2 style="margin-top:16px;">🔧 Grapeo (cámaras y arquetas)</h2>
-  <div style="display:flex;gap:8px;">
-    <div class="field" style="flex:1;">
-      <label>Nº cámaras (CR)</label>
-      <input type="number" id="prjNumCr" min="0" step="1" value="0">
-    </div>
-    <div class="field" style="flex:1;">
-      <label>Nº arquetas (ARQ)</label>
-      <input type="number" id="prjNumArq" min="0" step="1" value="0">
-    </div>
-  </div>
-
-  <h2 style="margin-top:16px;">📐 Cálculos</h2>
+  <h2 style="margin-top:16px;">📐 Malla</h2>
   <div class="calc" id="calcBox"></div>
-
-  <h2 style="margin-top:16px;">💾 Exportación</h2>
-  <div class="field check">
-    <input type="checkbox" id="prjAddCajetin">
-    <label for="prjAddCajetin">Añadir cajetín de resumen (el plano ya suele traer uno)</label>
-  </div>
 </div>
 
 <div class="toast" id="toast" style="display:none"></div>
@@ -559,8 +476,8 @@ const state = {
   bgWidth: 0, bgHeight: 0, bgLoaded: false,
   history: [],
 };
-const settings = { equipo: '', nombre: '', grapeoCr: 5, grapeoArq: 3, defaultLetra: 'A', defaultTextSize: 14 };
-const project = { title: '', name: '', suc: '', empalmes: '', fecha: '', cableText: '', addCajetin: false, numArq: 0, numCr: 0 };
+const settings = { defaultLetra: 'A', defaultTextSize: 14, mostrarPng: false };
+const project = { fecha: '' };
 
 let spaceDown = false;
 let dragState = null;
@@ -642,16 +559,6 @@ function buildToolbar() {
     drawerCables.appendChild(b);
   });
 
-  const drawerCableHl = document.getElementById('drawerCableHl');
-  CABLE_TYPES.forEach(ct => {
-    const b = document.createElement('button');
-    b.className = 'tool';
-    b.innerHTML = `<span class="sw" style="background:${ct.color}"></span>HL ${ct.id}`;
-    b.onclick = () => { selectTool('hl-cable', { color: ct.color, cableTypeRef: ct.id }); closeDrawer(); };
-    b.dataset.tool = 'hl-cable-' + ct.id;
-    drawerCableHl.appendChild(b);
-  });
-
   const drawerTramos = document.getElementById('drawerTramos');
   TRAMO_LETRAS.forEach(t => {
     const b = document.createElement('button');
@@ -717,7 +624,6 @@ function updateToolUI() {
   }
   let key = state.tool;
   if (state.tool === 'cable') key = 'cable-' + state.toolData.cableType;
-  else if (state.tool === 'hl-cable') key = 'hl-cable-' + state.toolData.cableTypeRef;
   else if (state.tool === 'tramo') key = 'tramo-' + (state.toolData.letra || 'AEREO');
   else if (state.tool === 'elem') key = 'elem-' + state.toolData.elemType;
   document.querySelectorAll(`.tool[data-tool="${key}"]`).forEach(b => b.classList.add('active'));
@@ -741,40 +647,34 @@ function updateActiveCableUI() {
 // SETTINGS / PROJECT
 // ============================================================
 function syncSettingsToUI() {
-  ['equipo','nombre','grapeoCr','grapeoArq','defaultLetra','defaultTextSize'].forEach(k => {
+  ['defaultLetra','defaultTextSize'].forEach(k => {
     const el = document.getElementById('set' + k[0].toUpperCase() + k.slice(1));
     if (el) el.value = settings[k];
   });
+  const pngChk = document.getElementById('setMostrarPng');
+  if (pngChk) pngChk.checked = !!settings.mostrarPng;
+  aplicarVisibilidadPng();
 }
 function syncSettingsFromUI() {
-  settings.equipo = document.getElementById('setEquipo').value;
-  settings.nombre = document.getElementById('setNombre').value;
-  settings.grapeoCr = +document.getElementById('setGrapeoCr').value || 0;
-  settings.grapeoArq = +document.getElementById('setGrapeoArq').value || 0;
   settings.defaultLetra = document.getElementById('setDefaultLetra').value;
   settings.defaultTextSize = +document.getElementById('setDefaultTextSize').value || 14;
+  settings.mostrarPng = document.getElementById('setMostrarPng').checked;
+  aplicarVisibilidadPng();
   saveSettings();
-  updateCalc();
+}
+function aplicarVisibilidadPng() {
+  const btn = document.getElementById('btnExport');
+  if (btn) btn.style.display = settings.mostrarPng ? '' : 'none';
 }
 function syncProjectFromUI() {
-  project.title = document.getElementById('prjTitle').value;
-  project.name = document.getElementById('prjName').value;
-  project.suc = document.getElementById('prjSuc').value;
-  project.empalmes = document.getElementById('prjEmpalmes').value;
   project.fecha = document.getElementById('prjFecha').value;
-  project.cableText = document.getElementById('prjCableText').value;
-  project.addCajetin = document.getElementById('prjAddCajetin').checked;
-  project.numCr = +document.getElementById('prjNumCr').value || 0;
-  project.numArq = +document.getElementById('prjNumArq').value || 0;
-  updateCalc();
 }
 
+// Nombre por defecto del archivo: tipos de cable presentes, o "Plano"
 function getTitle() {
-  if (project.title) return project.title;
   const cableTypes = [...new Set(state.elements.filter(e => e.type === 'cable').map(e => e.cableType))];
-  const cableStr = cableTypes.length ? cableTypes.join('+') : (project.cableText || '');
-  const sucPart = project.suc ? 'Suc ' + project.suc : (project.empalmes || '');
-  return ['Plano', sucPart, cableStr].filter(s => s).join(' ').trim() || 'Plano';
+  const cableStr = cableTypes.length ? cableTypes.join('+') : '';
+  return ['Plano', cableStr].filter(s => s).join(' ').trim() || 'Plano';
 }
 
 // ============================================================
@@ -803,21 +703,17 @@ function calcMallaDetallada() {
 function calcPerCable() {
   const cables = state.elements.filter(e => e.type === 'cable');
   const map = new Map();
-  cables.forEach(c => map.set(c.id, { type: c.cableType, color: c.color, tramos: 0, valonas: 0, grapeo: 0 }));
-  map.set('__unassigned__', { type: 'Sin asignar', color: '#6b7280', tramos: 0, valonas: 0, grapeo: 0 });
+  cables.forEach(c => map.set(c.id, { type: c.cableType, color: c.color, tramos: 0, valonas: 0 }));
+  map.set('__unassigned__', { type: 'Sin asignar', color: '#6b7280', tramos: 0, valonas: 0 });
   state.elements.forEach(el => {
     const key = el.cableId && map.has(el.cableId) ? el.cableId : '__unassigned__';
     const m = map.get(key);
     if (el.type === 'tramo') m.tramos += +el.meters || 0;
     else if (el.type === 'valona') m.valonas += +el.meters || 0;
-    else if (el.type === 'elem') {
-      if (el.elemType === 'CR') m.grapeo += settings.grapeoCr;
-      else if (el.elemType === 'ARQ') m.grapeo += settings.grapeoArq;
-    }
   });
   const result = [];
   map.forEach((v, k) => {
-    v.total = v.tramos + v.valonas + v.grapeo;
+    v.total = v.tramos + v.valonas;
     if (k === '__unassigned__' && v.total === 0) return;
     result.push({ id: k, ...v });
   });
@@ -857,17 +753,6 @@ function updateCalc() {
   }
   html += mallaCableRows;
 
-  // Grapeo manual (Nº CR y Nº ARQ × metros de grapeo)
-  const grapeoCrTot = (project.numCr || 0) * (settings.grapeoCr || 0);
-  const grapeoArqTot = (project.numArq || 0) * (settings.grapeoArq || 0);
-  const grapeoTotal = grapeoCrTot + grapeoArqTot;
-  if (grapeoTotal > 0) {
-    html += `<div class="row" style="margin-top:8px;border-top:1px solid #2a2f3a;padding-top:6px;">
-      <span style="font-size:11px;color:#9ca3af">GRAPEO (${project.numCr||0} CR + ${project.numArq||0} ARQ)</span>
-      <span><b style="font-size:14px;color:#fbbf24">${grapeoTotal} m</b></span></div>
-      <div class="row" style="font-size:10px;color:#6b7280;margin-bottom:2px"><span>CR: ${grapeoCrTot} m &nbsp;·&nbsp; ARQ: ${grapeoArqTot} m</span></div>`;
-  }
-
   if (perCable.length === 0) {
     html += `<div class="row" style="margin-top:8px"><span>Cable</span><span>0 m</span></div>`;
   } else {
@@ -885,171 +770,12 @@ function updateCalc() {
         <span><span class="sw-mini" style="background:${c.color}"></span><b>${c.type}</b>${tiradaLabel}</span>
         <span><b>${c.total} m</b></span></div>
         <div class="row" style="font-size:10px;color:#9ca3af;margin-left:18px;margin-bottom:4px">
-          <span>tramos <b>${c.tramos}</b> · valonas <b>${c.valonas}</b> · grapeo <b>${c.grapeo}</b></span>
+          <span>tramos <b>${c.tramos}</b> · valonas <b>${c.valonas}</b></span>
         </div>`;
     });
   }
   document.getElementById('calcBox').innerHTML = html;
 }
-
-// ============================================================
-// AUTO-DETECCIÓN POR TEXTO (solo PDFs con capa de texto)
-// ============================================================
-// Patrones reconocidos:
-//   ARQ...        → texto con fondo amarillo
-//   CR...         → texto con fondo amarillo
-//   01E/02E/03E.. → texto con fondo naranja (empalme)
-//   6 dígitos     → texto con fondo amarillo (CTO)
-//   L + 5+ dígitos → texto con fondo amarillo (Poste)
-
-const PATRONES_PDF = [
-  { id: 'arq',      regex: /^ARQ/i,           color: '#fef08a', etiqueta: 'ARQ' },
-  { id: 'cr',       regex: /^CR\b/i,           color: '#fef08a', etiqueta: 'CR' },
-  { id: 'empalme',  regex: /^0[1-9]E/i,        color: '#fb923c', etiqueta: 'Empalme' },
-  { id: 'cto',      regex: /^\d{6}$/,           color: '#fef08a', etiqueta: 'CTO' },
-  { id: 'poste',    regex: /^L\s?\d{3,}/i,      color: '#fef08a', etiqueta: 'Poste' },
-];
-
-// Fusiona la palabra que coincide con las palabras vecinas de la MISMA línea
-// (a su derecha) para abarcar la etiqueta completa, p.ej. "ARQ" + "D" + "5736".
-function cajaEtiquetaCompleta(match, todas) {
-  if (match.x0 === undefined) return null;
-  let { x0, y0, x1, y1 } = match;
-  const alturaLinea = (match.y1 - match.y0) || 12;
-  let cambiado = true, usados = new Set([match]);
-  while (cambiado) {
-    cambiado = false;
-    for (const w of todas) {
-      if (usados.has(w) || w.x0 === undefined) continue;
-      const centroY = (w.y0 + w.y1) / 2;
-      // Tolerancias más amplias: el OCR a menudo desalinea palabras de la misma línea
-      const mismaLinea = centroY >= y0 - alturaLinea*0.8 && centroY <= y1 + alturaLinea*0.8;
-      const huecoDer = w.x0 - x1;          // hueco a la derecha del grupo
-      const huecoIzq = x0 - w.x1;          // hueco a la izquierda del grupo
-      const maxGap = alturaLinea * 3.5;    // hasta ~3 letras de hueco entre palabras
-      const cerca = (huecoDer >= -3 && huecoDer < maxGap) ||
-                    (huecoIzq >= -3 && huecoIzq < maxGap);
-      if (mismaLinea && cerca) {
-        x0 = Math.min(x0, w.x0); y0 = Math.min(y0, w.y0);
-        x1 = Math.max(x1, w.x1); y1 = Math.max(y1, w.y1);
-        usados.add(w); cambiado = true;
-      }
-    }
-  }
-  return { x0, y0, x1, y1 };
-}
-
-function detectarPatronPDF(patronId) {
-  if (!state.bgLoaded) { toast('Carga un plano primero'); return; }
-  if (!state.pdfTexts || state.pdfTexts.length === 0) {
-    toast('Ejecuta el OCR primero (botón ▶ Ejecutar OCR)'); return;
-  }
-  const patron = PATRONES_PDF.find(p => p.id === patronId);
-  if (!patron) return;
-
-  const encontrados = state.pdfTexts.filter(t => patron.regex.test(t.text));
-  if (encontrados.length === 0) {
-    toast(`No se encontró ningún "${patron.etiqueta}"`); return;
-  }
-
-  if (!confirm(`Se encontraron ${encontrados.length} "${patron.etiqueta}".\n¿Resaltarlos en el plano?\n\nSe pintará un recuadro de color sobre la etiqueta (sin tapar el texto original). Toca para borrar los incorrectos.`)) return;
-
-  pushHistory();
-  encontrados.forEach(item => {
-    const caja = cajaEtiquetaCompleta(item, state.pdfTexts) || { x0: item.x, y0: item.y, x1: item.x + 30, y1: item.y + 12 };
-    const pad = 2;
-    state.elements.push({
-      id: newId(), type: 'highlight',
-      color: patron.color,
-      x1: caja.x0 - pad, y1: caja.y0 - pad,
-      x2: caja.x1 + pad, y2: caja.y1 + pad
-    });
-  });
-  redraw();
-  toast(`✓ ${encontrados.length} ${patron.etiqueta} resaltados · ↶ para deshacer`);
-}
-window.detectarPatronPDF = detectarPatronPDF;
-
-// ============================================================
-// OCR CON TESSERACT.JS (para PDFs rasterizados sin capa texto)
-// ============================================================
-let _ocrCargando = false;
-
-async function ejecutarOCR() {
-  if (!state.bgLoaded) { toast('Carga un plano primero'); return; }
-  if (_ocrCargando) { toast('OCR ya en marcha...'); return; }
-
-  // Cargar Tesseract.js de CDN solo la primera vez
-  if (!window.Tesseract) {
-    toast('⏳ Descargando motor OCR (~15 MB)...');
-    await new Promise((res, rej) => {
-      const s = document.createElement('script');
-      s.src = 'https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js';
-      s.onload = res; s.onerror = () => rej(new Error('No se pudo cargar Tesseract.js'));
-      document.head.appendChild(s);
-    }).catch(e => { toast('Error: ' + e.message); throw e; });
-  }
-
-  _ocrCargando = true;
-  toast('🔍 Preparando OCR...');
-
-  try {
-    // Reescalar el plano x2 para que el texto pequeño sea legible por el OCR
-    const src = document.getElementById('bgCanvas');
-    const SCALE = 2;
-    const big = document.createElement('canvas');
-    big.width = src.width * SCALE;
-    big.height = src.height * SCALE;
-    const bctx = big.getContext('2d');
-    bctx.imageSmoothingEnabled = true;
-    bctx.drawImage(src, 0, 0, big.width, big.height);
-
-    // Worker API: modo "texto disperso" (SPARSE_TEXT = 11) para etiquetas sueltas en mapa
-    const worker = await Tesseract.createWorker('eng', 1, {
-      logger: m => {
-        if (m.status === 'recognizing text') toast('OCR: ' + Math.round(m.progress * 100) + '%');
-      }
-    });
-    await worker.setParameters({
-      tessedit_pageseg_mode: '11',
-      preserve_interword_spaces: '1'
-    });
-    const result = await worker.recognize(big);
-    await worker.terminate();
-
-    // Coordenadas divididas por SCALE para volver al sistema del plano original.
-    // Guardamos la caja completa (x0,y0,x1,y1) para poder resaltar la etiqueta entera.
-    state.pdfTexts = (result.data.words || [])
-      .filter(w => w.confidence > 15 && w.text && w.text.trim().length >= 2)
-      .map(w => ({
-        text: w.text.trim().replace(/[^A-Za-z0-9\-_]/g, ''),
-        x: Math.round(w.bbox.x0 / SCALE),
-        y: Math.round(w.bbox.y0 / SCALE),
-        x0: w.bbox.x0 / SCALE, y0: w.bbox.y0 / SCALE,
-        x1: w.bbox.x1 / SCALE, y1: w.bbox.y1 / SCALE
-      }))
-      .filter(w => w.text.length >= 2);
-
-    const arqs = state.pdfTexts.filter(t => /ARQ/i.test(t.text)).length;
-    const crs  = state.pdfTexts.filter(t => /^CR/i.test(t.text)).length;
-    const emp  = state.pdfTexts.filter(t => /^0[1-9]E/i.test(t.text)).length;
-    const ctos = state.pdfTexts.filter(t => /^\d{6}$/.test(t.text)).length;
-    const post = state.pdfTexts.filter(t => /^L\d{4,}/i.test(t.text)).length;
-
-    if (state.pdfTexts.length === 0) {
-      alert('El OCR no reconoció texto.\n\nEsto pasa con planos de baja resolución o texto muy pequeño. Prueba a:\n• Cargar el PDF en vez de una captura\n• Marcar los elementos manualmente');
-    } else {
-      alert(`✓ OCR completado: ${state.pdfTexts.length} palabras detectadas\n\nARQ: ${arqs}\nCR: ${crs}\nEmpalmes (0xE): ${emp}\nCTO (6 díg): ${ctos}\nPostes (L): ${post}\n\nAhora pulsa los botones de color para marcarlos.`);
-    }
-    toast(`✓ OCR: ${state.pdfTexts.length} palabras`);
-  } catch(e) {
-    toast('Error OCR: ' + e.message);
-    console.error(e);
-  } finally {
-    _ocrCargando = false;
-  }
-}
-window.ejecutarOCR = ejecutarOCR;
 
 // ============================================================
 // RENDER
@@ -1577,7 +1303,7 @@ function onPointerMove(evt) {
 
   // Resolve pending into concrete action
   if (dragState.type === 'pending' && dragState.moved) {
-    const isHlTool = state.tool === 'hl-yellow' || state.tool === 'hl-orange' || state.tool === 'hl-cable' || state.tool === 'cover';
+    const isHlTool = state.tool === 'hl-yellow' || state.tool === 'hl-orange' || state.tool === 'cover';
     if (isHlTool) dragState.type = 'highlight';
     else if (dragState.hitEl && dragState.hitEl.x !== undefined && !state.tool) {
       dragState.type = 'elem-move';
@@ -2102,22 +1828,6 @@ async function loadPdf(file) {
   const c = document.createElement('canvas');
   c.width = vp.width; c.height = vp.height;
   await page.render({ canvasContext: c.getContext('2d'), viewport: vp }).promise;
-
-  // Extraer capa de texto con posiciones reales en el canvas
-  try {
-    const textContent = await page.getTextContent();
-    state.pdfTexts = textContent.items
-      .filter(item => item.str && item.str.trim().length >= 2)
-      .map(item => {
-        const pt = vp.convertToViewportPoint(item.transform[4], item.transform[5]);
-        return { text: item.str.trim(), x: Math.round(pt[0]), y: Math.round(pt[1]) };
-      });
-    toast('PDF cargado · ' + state.pdfTexts.length + ' elementos de texto detectados');
-  } catch(e) {
-    state.pdfTexts = [];
-    console.warn('No se pudo extraer texto del PDF:', e);
-  }
-
   renderToCanvas(c);
 }
 function renderToCanvas(source) {
@@ -2288,10 +1998,10 @@ function openPanel(id) {
 function closePanel(id) { document.getElementById(id).classList.remove('open'); }
 window.closePanel = closePanel;
 
-['setEquipo','setNombre','setGrapeoCr','setGrapeoArq','setDefaultLetra','setDefaultTextSize'].forEach(id => document.getElementById(id).addEventListener('input', syncSettingsFromUI));
+['setDefaultLetra','setDefaultTextSize'].forEach(id => document.getElementById(id).addEventListener('input', syncSettingsFromUI));
 document.getElementById('setDefaultLetra').addEventListener('change', syncSettingsFromUI);
-['prjTitle','prjName','prjSuc','prjEmpalmes','prjFecha','prjCableText','prjNumCr','prjNumArq'].forEach(id => document.getElementById(id).addEventListener('input', syncProjectFromUI));
-document.getElementById('prjAddCajetin').addEventListener('change', syncProjectFromUI);
+document.getElementById('setMostrarPng').addEventListener('change', syncSettingsFromUI);
+document.getElementById('prjFecha').addEventListener('input', syncProjectFromUI);
 
 // ============================================================
 // TOPBAR
@@ -2306,9 +2016,8 @@ document.getElementById('activeCableBar').onclick = () => {
 // ============================================================
 async function generatePlanBlob(mime = 'image/png', quality) {
   const W = state.bgWidth, H = state.bgHeight;
-  const addCajetin = project.addCajetin;
   const c = document.createElement('canvas');
-  c.width = W; c.height = addCajetin ? H + 240 : H;
+  c.width = W; c.height = H;
   const ctx = c.getContext('2d');
   ctx.fillStyle = 'white'; ctx.fillRect(0, 0, c.width, c.height);
   ctx.drawImage(document.getElementById('bgCanvas'), 0, 0);
@@ -2353,7 +2062,6 @@ async function generatePlanBlob(mime = 'image/png', quality) {
     img.onerror = rej;
     img.src = url;
   });
-  if (addCajetin) drawCajetin(ctx, 0, H, W, 240);
   return new Promise(r => c.toBlob(r, mime, quality));
 }
 
@@ -2389,16 +2097,6 @@ async function exportarImagen(mime, ext, quality) {
 }
 document.getElementById('btnExport').onclick    = () => exportarImagen('image/png', 'png');
 document.getElementById('btnExportJpg').onclick = () => exportarImagen('image/jpeg', 'jpg', 0.92);
-document.getElementById('btnDrive').onclick = async () => {
-  if (!driveClientId()) { toast('Configura Drive en ⚙️ Ajustes'); openPanel('settingsPanel'); return; }
-  // Carpeta según el estado del proyecto actual (o "En curso" por defecto)
-  let estadoLabel = ESTADOS.curso.label;
-  if (state.currentProjectId) {
-    const p = await _getProject(state.currentProjectId);
-    if (p && ESTADOS[p.estado]) estadoLabel = ESTADOS[p.estado].label;
-  }
-  await subirPlanoADrive(estadoLabel, false);
-};
 
 // Descarga PDF (carga jsPDF de CDN solo la primera vez)
 async function _cargarJsPDF() {
@@ -2456,36 +2154,6 @@ document.getElementById('btnShare').onclick = async () => {
     toast('Tu navegador no soporta compartir');
   }
 };
-
-function drawCajetin(ctx, x, y, w, h) {
-  ctx.fillStyle = '#fff'; ctx.fillRect(x, y, w, h);
-  ctx.strokeStyle = '#000'; ctx.lineWidth = 1; ctx.strokeRect(x, y, w, h);
-  const m = calcMalla();
-  const perCable = calcPerCable();
-  const cableTxt = project.cableText || perCable.filter(c => c.id !== '__unassigned__').map(c => c.type).join(' + ') || '—';
-  const px = x + 20; let py = y + 30;
-  ctx.fillStyle = '#000'; ctx.font = 'bold 16px Arial';
-  ctx.fillText(`${getTitle()}`, px, py); py += 24;
-  ctx.font = '13px Arial';
-  ctx.fillText(`PROYECTO: ${project.name || '—'}`, px, py); py += 18;
-  ctx.fillText(`EQUIPO: ${settings.equipo || '—'}    NOMBRE: ${settings.nombre || '—'}    FECHA: ${project.fecha || '—'}`, px, py); py += 18;
-  ctx.fillText(`TIPO DE CABLE: ${cableTxt}    SUC: ${project.suc || '—'}    EMPALMES: ${project.empalmes || '—'}`, px, py); py += 22;
-  ctx.font = 'bold 14px Arial';
-  ctx.fillText(`MALLA (A+B): ${m} m`, px, py); py += 20;
-  ctx.font = '13px Arial';
-  perCable.forEach(c => {
-    if (c.id === '__unassigned__' && c.total === 0) return;
-    const lbl = c.id === '__unassigned__' ? 'Sin asignar' : c.type;
-    ctx.fillText(`  ${lbl}: ${c.total} m  (tramos ${c.tramos} · valonas ${c.valonas} · grapeo ${c.grapeo})`, px, py);
-    py += 17;
-  });
-  // Grapeo manual por nº de CR/ARQ
-  const grapeoMan = (project.numCr || 0) * (settings.grapeoCr || 0) + (project.numArq || 0) * (settings.grapeoArq || 0);
-  if (grapeoMan > 0) {
-    ctx.font = 'bold 13px Arial';
-    ctx.fillText(`GRAPEO (${project.numCr||0} CR + ${project.numArq||0} ARQ): ${grapeoMan} m`, px, py); py += 18;
-  }
-}
 
 // ============================================================
 // TOAST
@@ -2759,7 +2427,6 @@ async function refrescarPanelProyectos() {
         refrescarPanelProyectos();
         toast('Estado: ' + ESTADOS[nuevo].label);
         _syncProyectoSiConectado(p.id); // sube el cambio de estado a la nube
-        if (driveAutoOn() && p.id === state.currentProjectId) subirPlanoADrive(ESTADOS[nuevo].label, true);
       };
       acc.appendChild(sel);
       // Alias
@@ -2811,14 +2478,8 @@ function _initFiltrosProyectos() {
 }
 
 function syncProjectToUI() {
-  ['prjTitle','prjName','prjSuc','prjEmpalmes','prjFecha','prjCableText'].forEach(id => {
-    const k = id.slice(3,4).toLowerCase() + id.slice(4);
-    const el = document.getElementById(id);
-    if (el) el.value = project[k] || '';
-  });
-  if (document.getElementById('prjAddCajetin')) document.getElementById('prjAddCajetin').checked = !!project.addCajetin;
-  if (document.getElementById('prjNumCr')) document.getElementById('prjNumCr').value = project.numCr || 0;
-  if (document.getElementById('prjNumArq')) document.getElementById('prjNumArq').value = project.numArq || 0;
+  const f = document.getElementById('prjFecha');
+  if (f) f.value = project.fecha || '';
 }
 
 // Exportar el proyecto como archivo .dproject (JSON con imagen embebida)
@@ -2879,7 +2540,6 @@ let _driveToken = null, _driveTokenExp = 0, _driveTokenClient = null, _gisLoaded
 
 const DRIVE_DEFAULT_CLIENTID = '910743268852-6agbsgsv1kmngjf425brk2vkrkn9mvin.apps.googleusercontent.com';
 function driveClientId() { return (localStorage.getItem('digi_drive_clientid') || DRIVE_DEFAULT_CLIENTID).trim(); }
-function driveAutoOn() { return localStorage.getItem('digi_drive_auto') === '1'; }
 function setDriveStatus(txt, color) {
   const el = document.getElementById('driveStatus');
   if (el) { el.textContent = 'Estado: ' + txt; el.style.color = color || '#9ca3af'; }
@@ -2942,31 +2602,6 @@ async function _driveEnsureFolder(name, parentId) {
   return (await c.json()).id;
 }
 
-// Sube (o reemplaza) un archivo en la carpeta del estado dado
-async function _driveSubirArchivo(blob, filename, estadoLabel) {
-  const rootId = await _driveEnsureFolder(DRIVE_ROOT, null);
-  const folderId = await _driveEnsureFolder(estadoLabel, rootId);
-  // ¿Existe ya un archivo con ese nombre en la carpeta? → actualizar
-  const q = `name='${filename.replace(/'/g,"\\'")}' and '${folderId}' in parents and trashed=false`;
-  const sr = await _driveFetch('https://www.googleapis.com/drive/v3/files?q=' + encodeURIComponent(q) + '&fields=files(id)');
-  const existing = (await sr.json()).files;
-  const token = await _driveGetToken(false);
-  if (existing && existing.length) {
-    await fetch('https://www.googleapis.com/upload/drive/v3/files/' + existing[0].id + '?uploadType=media', {
-      method: 'PATCH', headers: { Authorization: 'Bearer ' + token, 'Content-Type': blob.type }, body: blob
-    });
-    return { updated: true };
-  }
-  const meta = { name: filename, parents: [folderId] };
-  const form = new FormData();
-  form.append('metadata', new Blob([JSON.stringify(meta)], { type: 'application/json' }));
-  form.append('file', blob);
-  await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart', {
-    method: 'POST', headers: { Authorization: 'Bearer ' + token }, body: form
-  });
-  return { updated: false };
-}
-
 async function driveConectar() {
   const cid = driveClientId();
   if (!cid) { toast('Pega primero el Client ID'); return; }
@@ -2996,25 +2631,8 @@ function driveDesconectar() {
   toast('Drive desconectado');
 }
 
-// Sube el plano actual a Drive en la carpeta del estado indicado (PDF)
-async function subirPlanoADrive(estadoLabel, silencioso) {
-  if (!driveClientId()) { if (!silencioso) toast('Configura Drive en Ajustes'); return; }
-  if (!state.bgLoaded) { if (!silencioso) toast('Carga un plano primero'); return; }
-  try {
-    if (!silencioso) toast('Subiendo a Drive...');
-    await _cargarJsPDF();
-    const blob = await generarPdfBlob();
-    const fname = _baseFilename() + '.pdf';
-    const r = await _driveSubirArchivo(blob, fname, estadoLabel);
-    toast('☁️ Subido a Drive / ' + estadoLabel + (r.updated ? ' (actualizado)' : ''));
-  } catch (e) {
-    if (!silencioso) toast('Error Drive: ' + e.message);
-    console.warn('subirPlanoADrive:', e);
-  }
-}
 window.driveConectar = driveConectar;
 window.driveDesconectar = driveDesconectar;
-window.subirPlanoADrive = subirPlanoADrive;
 
 // ── SINCRONIZACIÓN DE PROYECTOS EDITABLES (Drive) ──────────────
 const DRIVE_PROY_FOLDER = '_Proyectos';
@@ -3245,13 +2863,9 @@ if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
 }
 // Drive: cargar Client ID y preferencias guardadas
 (function initDrive(){
-  const inp = document.getElementById('setDriveClientId');
-  if (inp) { inp.value = driveClientId(); inp.addEventListener('input', () => localStorage.setItem('digi_drive_clientid', inp.value.trim())); }
-  const auto = document.getElementById('setDriveAuto');
-  if (auto) { auto.checked = driveAutoOn(); auto.addEventListener('change', () => localStorage.setItem('digi_drive_auto', auto.checked ? '1' : '0')); }
-  if (driveClientId()) setDriveStatus('configurado (toca 🔑 Conectar Drive)', '#9ca3af');
+  if (localStorage.getItem('digi_drive_connected') === '1') setDriveStatus('configurado (toca 🔑 Conectar Drive)', '#9ca3af');
   // No auto-conectamos al abrir (evita pedir la cuenta cada vez en el móvil).
-  // La sesión se obtiene de forma silenciosa cuando pulsas Sincronizar/Subir.
+  // La sesión se obtiene de forma silenciosa cuando pulsas Sincronizar.
 })();
 // Campo "Nombre del archivo (alias)" en el panel de proyecto
 (function initAlias(){
