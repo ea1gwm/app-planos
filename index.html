@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no, viewport-fit=cover">
-<title>Editor de Planos DIGI v8.0</title>
+<title>Editor de Planos DIGI v8.1</title>
 <meta name="theme-color" content="#1e2a3a">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -195,10 +195,11 @@
 <div class="app">
 
   <div class="topbar">
-    <span class="logo">DIGI<span class="ver">v8.0</span></span>
+    <span class="logo">DIGI<span class="ver">v8.1</span></span>
     <button id="btnHome" title="Ir al inicio" style="display:none">🏠</button>
     <span id="topbarTitle" style="font-size:12px;font-weight:600;color:#cbd5e1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:40vw;"></span>
     <span class="spacer"></span>
+    <button id="btnLock" title="Bloquear edición (solo ver)" style="display:none">🔒</button>
     <button id="btnUndo" class="undo" title="Deshacer">↶</button>
     <button id="btnSettings" title="Ajustes">⚙️</button>
     <button id="btnProject" class="primary" title="Proyecto">📋</button>
@@ -216,7 +217,7 @@
       <div class="logo-wrap">
         <div class="logo-main">DIGI</div>
         <div class="logo-sub">Editor de Planos</div>
-        <div class="logo-ver">v8.0</div>
+        <div class="logo-ver">v8.1</div>
       </div>
       <div class="cable-line"></div>
       <p>Carga una imagen o PDF del plano base para comenzar</p>
@@ -475,6 +476,7 @@ const state = {
   scale: 1, panX: 0, panY: 0,
   bgWidth: 0, bgHeight: 0, bgLoaded: false,
   history: [],
+  locked: false,
 };
 const settings = { defaultLetra: 'A', defaultTextSize: 14, mostrarPng: false };
 const project = { fecha: '' };
@@ -812,8 +814,21 @@ function fondoAutoPorTexto(texto) {
 function updateTopbar() {
   const home = document.getElementById('btnHome');
   const title = document.getElementById('topbarTitle');
+  const lock = document.getElementById('btnLock');
   if (home) home.style.display = state.bgLoaded ? '' : 'none';
   if (title) title.textContent = state.bgLoaded ? ((state.currentAlias && state.currentAlias.trim()) || getTitle() || '') : '';
+  if (lock) {
+    lock.style.display = state.bgLoaded ? '' : 'none';
+    lock.textContent = state.locked ? '🔒' : '✏️';
+    lock.title = state.locked ? 'Solo ver — toca para editar' : 'Editando — toca para bloquear';
+    lock.style.background = state.locked ? '#b45309' : '#1f2530';
+  }
+}
+function setLocked(v) {
+  state.locked = v;
+  if (v) { state.tool = null; state.toolData = {}; closePopup(); updateToolUI(); }
+  document.getElementById('stage').style.cursor = v ? 'grab' : '';
+  updateTopbar();
 }
 function redraw() {
   updateTopbar();
@@ -1131,6 +1146,13 @@ function onPointerDown(evt) {
   closeStackPicker();
   const coords = getEventCoords(evt);
   const sp = getStagePoint(coords.x, coords.y);
+
+  // MODO SOLO VER (bloqueado): tocar solo mueve/hace zoom, no edita nada
+  if (state.locked) {
+    dragState = { type: 'pan', startClientX: coords.x, startClientY: coords.y, panX0: state.panX, panY0: state.panY, moved: false };
+    document.getElementById('stage').classList.add('panning');
+    return;
+  }
 
   // ¿Pulsa el tirador de redimensión de una caja de texto?
   const resizeTarget = evt.target.closest('[data-resize-id]');
@@ -1856,6 +1878,7 @@ function renderToCanvas(source) {
   // Crear un nuevo proyecto guardado para esta sesión (solo si no estamos reabriendo uno)
   if (!state._cargandoProyectoGuardado) {
     state.currentProjectId = null;
+    setLocked(false); // plano nuevo: listo para editar
     setTimeout(() => { if (typeof crearProyectoActual === 'function') crearProyectoActual(); }, 200);
   }
   state._cargandoProyectoGuardado = false;
@@ -1964,6 +1987,10 @@ function irAInicio() {
   updateActiveCableUI(); updateTopbar(); updateToolUI();
 }
 document.getElementById('btnHome').onclick = irAInicio;
+document.getElementById('btnLock').onclick = () => {
+  setLocked(!state.locked);
+  toast(state.locked ? '🔒 Solo ver' : '✏️ Modo edición');
+};
 
 // Popup de edición arrastrable (para que no tape lo que quieres ver)
 (function makePopupDraggable(){
@@ -2341,9 +2368,10 @@ async function abrirProyecto(id) {
     const aliasInp = document.getElementById('prjAlias'); if (aliasInp) aliasInp.value = state.currentAlias;
     Object.assign(project, entry.project || {});
     syncProjectToUI();
+    setLocked(true); // se abre en modo solo ver; toca 🔒 para editar
     redraw();
     closePanel('projectsPanel');
-    toast('Abierto: ' + entry.title);
+    toast('Abierto en modo ver · toca 🔒 para editar');
   };
   img.src = URL.createObjectURL(entry.imgBlob);
 }
