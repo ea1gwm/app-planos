@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no, viewport-fit=cover">
-<title>Editor de Planos DIGI v8.2</title>
+<title>Editor de Planos DIGI v8.3</title>
 <meta name="theme-color" content="#1e2a3a">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -195,7 +195,7 @@
 <div class="app">
 
   <div class="topbar">
-    <span class="logo">DIGI<span class="ver">v8.2</span></span>
+    <span class="logo">DIGI<span class="ver">v8.3</span></span>
     <button id="btnHome" title="Ir al inicio" style="display:none">🏠</button>
     <span id="topbarTitle" style="font-size:12px;font-weight:600;color:#cbd5e1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:40vw;"></span>
     <span class="spacer"></span>
@@ -217,7 +217,7 @@
       <div class="logo-wrap">
         <div class="logo-main">DIGI</div>
         <div class="logo-sub">Editor de Planos</div>
-        <div class="logo-ver">v8.2</div>
+        <div class="logo-ver">v8.3</div>
       </div>
       <div class="cable-line"></div>
       <p>Carga una imagen o PDF del plano base para comenzar</p>
@@ -403,6 +403,10 @@
   <div class="field">
     <label>Fecha</label>
     <input type="date" id="prjFecha">
+  </div>
+  <div class="field">
+    <label>📝 Notas</label>
+    <textarea id="prjNotas" rows="3" placeholder="Observaciones del plano..." style="resize:vertical;"></textarea>
   </div>
 
   <h2 style="margin-top:16px;">📐 Malla</h2>
@@ -1865,6 +1869,7 @@ function renderToCanvas(source) {
     state.history = [];
     state.currentAlias = '';
     const aliasInp = document.getElementById('prjAlias'); if (aliasInp) aliasInp.value = '';
+    const notasInp = document.getElementById('prjNotas'); if (notasInp) notasInp.value = '';
   }
   const c = document.getElementById('bgCanvas');
   c.width = source.width; c.height = source.height;
@@ -2371,6 +2376,7 @@ async function abrirProyecto(id) {
     state.currentProjectId = entry.id;
     state.currentAlias = entry.alias || '';
     const aliasInp = document.getElementById('prjAlias'); if (aliasInp) aliasInp.value = state.currentAlias;
+    const notasInp = document.getElementById('prjNotas'); if (notasInp) notasInp.value = entry.notas || '';
     Object.assign(project, entry.project || {});
     syncProjectToUI();
     setLocked(true); // se abre en modo solo ver; toca 🔒 para editar
@@ -2694,20 +2700,10 @@ function _thumbFromDataUrl(dataUrl) {
     img.src = dataUrl;
   });
 }
-async function subirProyectoNube(entry) {
-  const folderId = await _driveProyFolder();
-  const imgDataUrl = await _blobToDataUrl(entry.imgBlob);
-  const payload = {
-    id: entry.id, fecha: entry.fecha, title: entry.title,
-    estado: entry.estado || 'recibido', alias: entry.alias || '', notas: entry.notas || '',
-    bgWidth: entry.bgWidth, bgHeight: entry.bgHeight,
-    elements: entry.elements, project: entry.project, activeCableId: entry.activeCableId,
-    imgDataUrl
-  };
-  const blob = new Blob([JSON.stringify(payload)], { type: 'application/json' });
-  const fname = entry.id + '.json';
+// Sube o actualiza un JSON con nombre 'fname' dentro de la carpeta 'folderId'
+async function _driveUpsertJson(folderId, fname, blob) {
   const token = await _driveGetToken(false);
-  const q = `name='${fname}' and '${folderId}' in parents and trashed=false`;
+  const q = `name='${fname.replace(/'/g,"\\'")}' and '${folderId}' in parents and trashed=false`;
   const sr = await _driveFetch('https://www.googleapis.com/drive/v3/files?q=' + encodeURIComponent(q) + '&fields=files(id)');
   const ex = (await sr.json()).files;
   if (ex && ex.length) {
@@ -2720,6 +2716,33 @@ async function subirProyectoNube(entry) {
     await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart',
       { method: 'POST', headers: { Authorization: 'Bearer ' + token }, body: form });
   }
+}
+// Carpeta de backup del día: Planos DIGI / Backups / AAAA-MM-DD
+async function _driveBackupFolder(fecha) {
+  const rootId = await _driveEnsureFolder(DRIVE_ROOT, null);
+  const backupsId = await _driveEnsureFolder('Backups', rootId);
+  return await _driveEnsureFolder(fecha, backupsId);
+}
+async function subirProyectoNube(entry) {
+  const folderId = await _driveProyFolder();
+  const imgDataUrl = await _blobToDataUrl(entry.imgBlob);
+  const payload = {
+    id: entry.id, fecha: entry.fecha, title: entry.title,
+    estado: entry.estado || 'recibido', alias: entry.alias || '', notas: entry.notas || '',
+    bgWidth: entry.bgWidth, bgHeight: entry.bgHeight,
+    elements: entry.elements, project: entry.project, activeCableId: entry.activeCableId,
+    imgDataUrl
+  };
+  const blob = new Blob([JSON.stringify(payload)], { type: 'application/json' });
+  // 1) Copia de trabajo (siempre la última) en _Proyectos
+  await _driveUpsertJson(folderId, entry.id + '.json', blob);
+  // 2) Copia fechada del día (histórico) — sobrescribe la de hoy
+  try {
+    const hoy = new Date().toISOString().slice(0, 10); // AAAA-MM-DD
+    const legible = ((entry.alias || entry.title || 'plano').replace(/[^\w\s\-]/g, '').trim() || 'plano') + ' [' + entry.id.slice(-4) + '].json';
+    const bkId = await _driveBackupFolder(hoy);
+    await _driveUpsertJson(bkId, legible, blob);
+  } catch (e) { console.warn('backup fechado:', e); }
 }
 async function listarProyectosNube() {
   const folderId = await _driveProyFolder();
@@ -2910,6 +2933,16 @@ if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
     if (typeof updateTopbar === 'function') updateTopbar();
     clearTimeout(t);
     t = setTimeout(async () => { if (state.currentProjectId) { await actualizarCampoProyecto(state.currentProjectId, 'alias', inp.value.trim()); _syncProyectoSiConectado(state.currentProjectId); } }, 800);
+  });
+})();
+// Campo Notas del proyecto
+(function initNotas(){
+  const inp = document.getElementById('prjNotas');
+  if (!inp) return;
+  let t = null;
+  inp.addEventListener('input', () => {
+    clearTimeout(t);
+    t = setTimeout(async () => { if (state.currentProjectId) { await actualizarCampoProyecto(state.currentProjectId, 'notas', inp.value); _syncProyectoSiConectado(state.currentProjectId); } }, 800);
   });
 })();
 document.getElementById('prjFecha').value = new Date().toISOString().split('T')[0];
