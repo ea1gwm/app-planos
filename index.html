@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no, viewport-fit=cover">
-<title>Editor de Planos DIGI v8.1</title>
+<title>Editor de Planos DIGI v8.2</title>
 <meta name="theme-color" content="#1e2a3a">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -195,7 +195,7 @@
 <div class="app">
 
   <div class="topbar">
-    <span class="logo">DIGI<span class="ver">v8.1</span></span>
+    <span class="logo">DIGI<span class="ver">v8.2</span></span>
     <button id="btnHome" title="Ir al inicio" style="display:none">🏠</button>
     <span id="topbarTitle" style="font-size:12px;font-weight:600;color:#cbd5e1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:40vw;"></span>
     <span class="spacer"></span>
@@ -217,7 +217,7 @@
       <div class="logo-wrap">
         <div class="logo-main">DIGI</div>
         <div class="logo-sub">Editor de Planos</div>
-        <div class="logo-ver">v8.1</div>
+        <div class="logo-ver">v8.2</div>
       </div>
       <div class="cable-line"></div>
       <p>Carga una imagen o PDF del plano base para comenzar</p>
@@ -1706,60 +1706,63 @@ document.getElementById('popupDelNear').onclick = () => {
 // Aprende la separación vertical hacia abajo mirando textos vecinos en la misma columna.
 // soloMismoTexto=true → solo cuenta hermanos con el mismo texto (para ↓ Repetir).
 // soloMismoTexto=false → cualquier texto en la columna (para ↓ Siguiente).
-function aprenderSeparacionAbajo(el, soloMismoTexto) {
+// Separación vertical recordada para repetir textos en cadena
+let _repetSepY = null;
+function separacionRepetir(el) {
+  // 1) Si hay otra copia en la misma columna, usar esa distancia real (la que fijó el usuario)
   const cand = state.elements.filter(e =>
-    e.type === 'text' && e !== el &&
-    Math.abs((e.x || 0) - (el.x || 0)) < 30 &&
-    (!soloMismoTexto || (e.text || '') === (el.text || ''))
+    e.type === 'text' && e !== el && Math.abs((e.x || 0) - (el.x || 0)) < 30
   );
   if (cand.length > 0) {
     cand.sort((a, b) => Math.abs(a.y - el.y) - Math.abs(b.y - el.y));
     const dy = Math.abs(cand[0].y - el.y);
-    if (dy >= 6) return dy;
+    if (dy >= 6) { _repetSepY = dy; return dy; }
   }
-  const lines = (el.text || ' ').split('\n');
+  // 2) Si ya repetimos antes en esta sesión, mantener la misma distancia
+  if (_repetSepY && _repetSepY >= 6) return _repetSepY;
+  // 3) Por defecto: una línea de texto con su interlineado
   const fs = el.fontSize || settings.defaultTextSize;
-  return el.boxH || (lines.length * fs * 1.25 + 6);
+  _repetSepY = el.boxH || Math.round(fs * 1.6);
+  return _repetSepY;
 }
 
-// ↓ Repetir: duplica el texto debajo con la misma separación entre copias idénticas
+// ↓ Repetir: duplica el texto debajo a la misma distancia (encadenable)
 document.getElementById('popupRepeatDown').onclick = () => {
   if (!popupElement || popupElement.type !== 'text') return;
   const el = popupElement;
-  const dy = aprenderSeparacionAbajo(el, true);
+  const dy = separacionRepetir(el);
   pushHistory();
   const nueva = JSON.parse(JSON.stringify(el));
   nueva.id = newId();
   nueva.y = el.y + dy;
   state.elements.push(nueva);
   state.selectedId = nueva.id;
-  popupElement = nueva;
+  popupElement = nueva; // el popup pasa a la nueva → pulsar de nuevo encadena
+  document.getElementById('popupLabel').value = (nueva.text || '').replace(/\n/g, '|');
   redraw();
-  toast('Copia añadida');
+  toast('Copia añadida · pulsa otra vez para más');
 };
 
-// ↓ Siguiente: salta a la siguiente posición con caja vacía lista para escribir distinto
+// ↓ Siguiente: salta a la siguiente línea con caja vacía para escribir distinto
 document.getElementById('popupRepeatBlank').onclick = () => {
   if (!popupElement || popupElement.type !== 'text') return;
   const el = popupElement;
-  const dy = aprenderSeparacionAbajo(el, false);
+  const dy = separacionRepetir(el);
   pushHistory();
   const nueva = JSON.parse(JSON.stringify(el));
   nueva.id = newId();
   nueva.y = el.y + dy;
   nueva.text = '';
-  // El usuario empieza un texto nuevo: liberar el auto-color para que aplique al escribir
   nueva._textColorManual = false;
   nueva.textColor = null;
   state.elements.push(nueva);
   state.selectedId = nueva.id;
   popupElement = nueva;
-  // Reset del input y foco para escribir directamente
   const labelInput = document.getElementById('popupLabel');
   labelInput.value = '';
-  setTimeout(() => labelInput.focus(), 30);
+  setTimeout(() => { labelInput.focus(); labelInput.select && labelInput.select(); }, 30);
   redraw();
-  toast('Listo para escribir');
+  toast('Listo para escribir la siguiente');
 };
 
 document.getElementById('popupLabel').addEventListener('input', (e) => {
@@ -2099,9 +2102,11 @@ function _baseFilename() {
 }
 // Intenta abrir el menú "Enviar a..." del sistema (WhatsApp, Drive, Guardar archivos...)
 // Si no está disponible, cae a descarga directa.
+const ES_MOVIL = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent);
 async function compartirOdescargar(blob, fname, mime) {
   const file = new File([blob], fname, { type: mime });
-  if (navigator.canShare && navigator.canShare({ files: [file] })) {
+  // En móvil: menú "Enviar a…". En PC: descarga directa (más cómodo).
+  if (ES_MOVIL && navigator.canShare && navigator.canShare({ files: [file] })) {
     try {
       await navigator.share({ files: [file], title: getTitle() });
       toast('Compartido');
