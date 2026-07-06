@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no, viewport-fit=cover">
-<title>Editor de Planos DIGI v8.3</title>
+<title>Editor de Planos DIGI v8.4</title>
 <meta name="theme-color" content="#1e2a3a">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -190,12 +190,235 @@
 
   .toast { position: fixed; bottom: 70px; left: 50%; transform: translateX(-50%); background: #1f2530; padding: 8px 14px; border-radius: 8px; border: 1px solid #2563eb; font-size: 12px; z-index: 200; box-shadow: 0 4px 12px rgba(0,0,0,0.5); }
 </style>
+<!-- ============ CAPA VISUAL MODERNA v9 (solo estilo, no toca la lógica) ============ -->
+<style>
+  :root {
+    --bg:        #0a0e14;
+    --stage-bg:  #060a0f;
+    --surface:   #141b25;
+    --surface-2: #1c2632;
+    --surface-3: #26333f;
+    --line:      #33414f;
+    --line-soft: #26313d;
+    --txt:       #f3f7fc;
+    --txt-mute:  #a9bacd;
+    --txt-dim:   #7c8da0;
+    --accent:    #2f81f7;
+    --accent-hi: #5aa0ff;
+    --accent-dk: #1b5fd0;
+    --ok:        #16a34a;
+    --ok-hi:     #2fce6d;
+    --radius:    12px;
+    --radius-sm: 9px;
+    --shadow:    0 6px 22px rgba(0,0,0,0.45);
+    --shadow-lg: 0 14px 40px rgba(0,0,0,0.55);
+    --tap:       40px;
+  }
+
+  html, body { background: var(--bg); color: var(--txt); letter-spacing: 0.1px; }
+
+  /* ---------- TOP BAR ---------- */
+  .topbar {
+    flex: 0 0 48px;
+    gap: 6px; padding: 0 10px;
+    background: linear-gradient(180deg, #121a24 0%, #0b1017 100%);
+    border-bottom: 1px solid var(--line);
+    box-shadow: 0 2px 10px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.04);
+  }
+  .topbar .logo {
+    color: #fff; font-weight: 800; font-size: 15px; letter-spacing: 0.3px;
+    display: inline-flex; align-items: center; gap: 4px;
+    padding: 4px 9px; border-radius: 999px;
+    background: linear-gradient(135deg, var(--accent) 0%, var(--accent-dk) 100%);
+    box-shadow: 0 3px 12px rgba(47,129,247,0.4);
+  }
+  .topbar .ver { color: rgba(255,255,255,0.85); font-size: 10px; font-weight: 700; margin-left: 1px; }
+  .topbar button {
+    padding: 0 10px; border-radius: 10px;
+    background: var(--surface-2); border: 1px solid var(--line);
+    color: var(--txt); font-size: 16px; font-weight: 600;
+    min-width: var(--tap); height: var(--tap); min-height: var(--tap);
+    display: inline-flex; align-items: center; justify-content: center;
+    transition: background .14s, transform .08s, border-color .14s, box-shadow .14s;
+  }
+  .topbar button:hover { background: var(--surface-3); border-color: #445366; }
+  .topbar button:active { transform: scale(0.93); }
+  .topbar button.primary {
+    background: linear-gradient(135deg, var(--accent) 0%, var(--accent-dk) 100%);
+    border-color: transparent; color: #fff; box-shadow: 0 3px 12px rgba(47,129,247,0.4);
+  }
+  .topbar button.undo { background: var(--surface-2); border-color: var(--line); font-size: 20px; }
+  .topbar button.undo:hover { background: var(--surface-3); }
+  .topbar button#btnExport, .topbar button#btnExportJpg, .topbar button#btnExportPdf {
+    font-size: 11px; font-weight: 800; letter-spacing: 0.2px; padding: 0 10px; min-width: 50px;
+    background: linear-gradient(135deg, var(--ok-hi) 0%, var(--ok) 100%);
+    border-color: transparent; color: #04140a;
+    box-shadow: 0 3px 12px rgba(22,163,74,0.38);
+  }
+  .topbar button#btnExport:active, .topbar button#btnExportJpg:active, .topbar button#btnExportPdf:active { transform: scale(0.93); }
+  #topbarTitle { color: var(--txt-mute) !important; font-weight: 600 !important; }
+
+  /* ---------- STAGE ---------- */
+  .stage { background:
+      radial-gradient(120% 90% at 50% -10%, #0d141d 0%, var(--stage-bg) 70%); }
+
+  /* ---------- BOTTOM TOOLBAR ---------- */
+  .toolbar {
+    min-height: 52px;
+    gap: 6px; padding: 6px 8px; padding-bottom: max(6px, env(safe-area-inset-bottom));
+    background: linear-gradient(0deg, #0b1017 0%, #121a24 100%);
+    border-top: 1px solid var(--line);
+    box-shadow: 0 -2px 14px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.04);
+    transition: min-height .22s ease, max-height .22s ease, padding .22s ease, opacity .18s ease;
+  }
+
+  /* ---------- OCULTAR / MOSTRAR HERRAMIENTAS ---------- */
+  #toolsToggle {
+    position: fixed; right: 12px; z-index: 40;
+    bottom: calc(52px + env(safe-area-inset-bottom) + 8px);
+    width: 46px; height: 34px; border-radius: 999px;
+    display: flex; align-items: center; justify-content: center;
+    background: rgba(10,14,20,0.92); border: 1px solid var(--accent);
+    color: #fff; font-size: 18px; line-height: 1;
+    box-shadow: var(--shadow); backdrop-filter: blur(6px);
+    transition: bottom .22s ease, transform .08s, background .14s;
+  }
+  #toolsToggle:active { transform: scale(0.92); }
+  #toolsToggle #toolsToggleIcon { display: block; transform: translateY(-1px); }
+
+  .app.tools-hidden .toolbar {
+    min-height: 0; max-height: 0; padding-top: 0; padding-bottom: 0;
+    overflow: hidden; opacity: 0; border-top-color: transparent;
+  }
+  .app.tools-hidden #toolsToggle {
+    bottom: calc(env(safe-area-inset-bottom) + 10px);
+    border-color: var(--ok-hi);
+  }
+  .tool {
+    padding: 0 11px; border-radius: 10px;
+    background: var(--surface-2); border: 1px solid var(--line);
+    color: var(--txt); font-size: 12.5px; font-weight: 700;
+    gap: 5px; min-height: 40px; letter-spacing: 0.2px;
+    transition: background .14s, transform .08s, border-color .14s, box-shadow .14s;
+  }
+  .tool:hover { background: var(--surface-3); border-color: #445366; }
+  .tool:active { transform: scale(0.93); }
+  .tool.active {
+    background: linear-gradient(135deg, var(--accent) 0%, var(--accent-dk) 100%);
+    border-color: transparent; color: #fff;
+    box-shadow: 0 0 0 3px rgba(47,129,247,0.28), 0 4px 14px rgba(47,129,247,0.35);
+  }
+  .tool .sw { width: 15px; height: 15px; border-radius: 4px; border: 2px solid rgba(255,255,255,0.9); box-shadow: 0 0 0 1px rgba(0,0,0,0.55), 0 1px 3px rgba(0,0,0,0.5); }
+  .tool .icon { font-size: 15px; }
+  .tool.divider { border-left: 1px solid var(--line); min-height: 26px; margin: 0 2px; opacity: 0.8; }
+
+  /* ---------- DRAWER (más herramientas) ---------- */
+  .drawer {
+    background: var(--surface); border-top: 1px solid var(--line);
+    border-radius: 20px 20px 0 0; padding: 10px 16px 18px;
+    box-shadow: var(--shadow-lg);
+  }
+  .drawer::before {
+    content: ""; display: block; width: 42px; height: 5px; border-radius: 999px;
+    background: #3a4757; margin: 4px auto 12px;
+  }
+  .drawer h3 { font-size: 15px; color: var(--txt); font-weight: 700; }
+  .drawer .close { padding: 7px 13px; background: var(--surface-2); border: 1px solid var(--line); border-radius: 10px; font-size: 13px; min-height: 38px; }
+  .drawer-section { margin-bottom: 16px; }
+  .drawer-section .label { font-size: 11px; color: var(--txt-mute); font-weight: 700; letter-spacing: 0.5px; margin-bottom: 8px; }
+  .drawer-section .tool-row { gap: 8px; }
+
+  /* ---------- PANELS ---------- */
+  .panel {
+    top: 0; bottom: 0; width: min(400px, 96vw);
+    background: var(--surface); border-left: 1px solid var(--line);
+    padding: 18px 18px calc(18px + env(safe-area-inset-bottom));
+    box-shadow: var(--shadow-lg);
+  }
+  .panel h2 { font-size: 16px; color: #fff; font-weight: 700; letter-spacing: 0.2px; }
+  .panel .close {
+    top: 14px; right: 14px; width: 40px; height: 40px; padding: 0;
+    display: flex; align-items: center; justify-content: center;
+    background: var(--surface-2); border: 1px solid var(--line); border-radius: 11px; font-size: 16px;
+  }
+  .panel .close:active { transform: scale(0.93); }
+  .field { margin-bottom: 14px; }
+  .field label { font-size: 11px; color: var(--txt-mute); font-weight: 700; letter-spacing: 0.4px; margin-bottom: 6px; }
+  .field input[type=text], .field input[type=number], .field input[type=date], .field select, .field textarea {
+    padding: 12px 12px; background: var(--bg); border: 1px solid var(--line);
+    border-radius: 10px; color: var(--txt); font-size: 15px; min-height: 46px;
+    transition: border-color .14s, box-shadow .14s;
+  }
+  .field input:focus, .field select:focus, .field textarea:focus {
+    outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px rgba(47,129,247,0.22);
+  }
+  .field.check label { color: var(--txt); font-size: 13px; }
+  .calc { background: var(--bg); border: 1px solid var(--line-soft); padding: 12px; border-radius: 11px; }
+  .calc .row.total { color: var(--accent-hi); border-top: 1px solid var(--line); }
+
+  /* ---------- POPUP DE ELEMENTO ---------- */
+  .elem-popup {
+    background: var(--surface); border: 1px solid var(--line);
+    border-radius: 14px; padding: 12px; box-shadow: var(--shadow-lg); min-width: 250px;
+  }
+  .elem-popup .btn-row { gap: 7px; }
+  .elem-popup .btn-row button {
+    padding: 11px 8px; border-radius: 9px; font-size: 12px; font-weight: 700;
+    min-height: 42px; border: 1px solid var(--line); background: var(--surface-2); color: var(--txt);
+    transition: transform .08s, filter .14s;
+  }
+  .elem-popup .btn-row button:active { transform: scale(0.94); }
+  .elem-popup .btn-row button.ok { background: linear-gradient(135deg, var(--accent), var(--accent-dk)); border-color: transparent; color:#fff; }
+  #popupDragBar { background: var(--surface-2) !important; border-bottom: 1px solid var(--line) !important; border-radius: 14px 14px 0 0 !important; padding: 10px 12px !important; }
+
+  /* ---------- STACK PICKER ---------- */
+  .stack-picker { background: var(--surface); border: 1px solid var(--accent); border-radius: 12px; padding: 8px; box-shadow: var(--shadow-lg); }
+  .stack-picker .item { padding: 10px 10px; border-radius: 8px; font-size: 13px; min-height: 40px; }
+  .stack-picker .item:hover { background: var(--surface-2); }
+
+  /* ---------- OVERLAYS ---------- */
+  .active-cable-bar { border-radius: 12px; border: 1px solid var(--accent); background: rgba(10,14,20,0.94); box-shadow: var(--shadow); backdrop-filter: blur(6px); padding: 9px 13px; }
+  .pan-hint { border-radius: 12px; border: 1px solid var(--line); background: rgba(10,14,20,0.94); box-shadow: var(--shadow); backdrop-filter: blur(6px); }
+  .toast { border-radius: 12px; border: 1px solid var(--accent); background: rgba(10,14,20,0.96); box-shadow: var(--shadow-lg); backdrop-filter: blur(8px); }
+
+  /* ---------- EMPTY STATE ---------- */
+  .empty-stage button {
+    background: linear-gradient(135deg, var(--accent) 0%, var(--accent-dk) 100%);
+    box-shadow: 0 6px 26px rgba(47,129,247,0.45); border-radius: 12px; padding: 15px 34px; font-size: 16px;
+  }
+
+  /* ---------- TABLET: barras y toques un poco más amplios ---------- */
+  @media (min-width: 700px) {
+    .topbar { flex-basis: 52px; }
+    .toolbar { min-height: 56px; gap: 7px; }
+    .tool { min-height: 44px; font-size: 13px; padding: 0 13px; }
+    .topbar button { --tap: 44px; }
+    .panel { width: min(440px, 60vw); }
+  }
+
+  /* ---------- MÓVIL: paneles como hoja inferior (pulgar) ---------- */
+  @media (max-width: 699px) {
+    .panel {
+      top: auto; left: 0; right: 0; bottom: 0; width: 100%;
+      max-height: 88vh; border-left: none; border-top: 1px solid var(--line);
+      border-radius: 20px 20px 0 0;
+      transform: translateY(100%);
+      padding-top: 8px;
+    }
+    .panel.open { transform: translateY(0); }
+    .panel::before {
+      content: ""; display: block; width: 42px; height: 5px; border-radius: 999px;
+      background: #3a4757; margin: 2px auto 14px;
+    }
+    .panel h2:first-of-type { margin-top: 4px; }
+  }
+</style>
 </head>
 <body>
 <div class="app">
 
   <div class="topbar">
-    <span class="logo">DIGI<span class="ver">v8.3</span></span>
+    <span class="logo">DIGI<span class="ver">v8.4</span></span>
     <button id="btnHome" title="Ir al inicio" style="display:none">🏠</button>
     <span id="topbarTitle" style="font-size:12px;font-weight:600;color:#cbd5e1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:40vw;"></span>
     <span class="spacer"></span>
@@ -217,7 +440,7 @@
       <div class="logo-wrap">
         <div class="logo-main">DIGI</div>
         <div class="logo-sub">Editor de Planos</div>
-        <div class="logo-ver">v8.3</div>
+        <div class="logo-ver">v8.4</div>
       </div>
       <div class="cable-line"></div>
       <p>Carga una imagen o PDF del plano base para comenzar</p>
@@ -239,6 +462,11 @@
 
   <!-- COMPACT TOOLBAR (always visible) -->
   <div class="toolbar" id="toolbarCompact"></div>
+
+  <!-- Botón ocultar/mostrar herramientas -->
+  <button id="toolsToggle" onclick="toggleTools()" title="Ocultar / mostrar herramientas">
+    <span id="toolsToggleIcon">⌄</span>
+  </button>
 
 </div>
 
@@ -281,6 +509,14 @@
   <div class="field" id="popupMetersWrap" style="display:none">
     <label id="popupMetersLabel">Metros</label>
     <input type="number" id="popupMeters" min="0" step="1">
+  </div>
+  <div class="field" id="popupEscalaWrap" style="display:none">
+    <label>Tamaño</label>
+    <div style="display:flex;gap:8px;align-items:center;">
+      <button type="button" id="popupEscalaMenos" style="flex:1;padding:12px;border-radius:9px;background:#1f2530;border:1px solid #2a3140;color:#e5e7eb;font-size:20px;font-weight:700;">−</button>
+      <span id="popupEscalaVal" style="min-width:52px;text-align:center;font-size:13px;color:#9ca3af;font-weight:600;">100%</span>
+      <button type="button" id="popupEscalaMas" style="flex:1;padding:12px;border-radius:9px;background:#1f2530;border:1px solid #2a3140;color:#e5e7eb;font-size:20px;font-weight:700;">+</button>
+    </div>
   </div>
   <div class="field" id="popupLabelWrap">
     <label id="popupLabelLabel">Etiqueta</label>
@@ -1522,6 +1758,14 @@ function openElemPopup(el, evt) {
   document.getElementById('popupBgColorWrap').style.display = 'none';
   document.getElementById('popupRepeatDown').style.display = 'none';
   document.getElementById('popupRepeatBlank').style.display = 'none';
+  // Botones de tamaño − / + para elementos escalables (valona, nota, X)
+  const escalaWrap = document.getElementById('popupEscalaWrap');
+  if (el.type === 'valona' || el.type === 'nota' || el.type === 'xmark') {
+    escalaWrap.style.display = 'block';
+    _actualizarEscalaVal(el);
+  } else {
+    escalaWrap.style.display = 'none';
+  }
   labelInput.readOnly = false;
   labelInput.style.textTransform = 'none';
 
@@ -1619,6 +1863,8 @@ function openElemPopup(el, evt) {
     labelLabel.textContent = 'Cable';
     labelInput.value = el.cableType || '';
     labelInput.readOnly = true;
+  } else if (el.type === 'xmark') {
+    labelWrap.style.display = 'none'; // la X solo necesita tamaño / borrar
   } else {
     labelInput.value = '';
   }
@@ -1768,6 +2014,22 @@ document.getElementById('popupRepeatBlank').onclick = () => {
   redraw();
   toast('Listo para escribir la siguiente');
 };
+
+// Botones de tamaño (−/+) para valona, nota y X — método táctil fiable
+function _actualizarEscalaVal(el) {
+  const span = document.getElementById('popupEscalaVal');
+  if (span) span.textContent = Math.round((el.size || 1) * 100) + '%';
+}
+function _ajustarEscala(delta) {
+  if (!popupElement) return;
+  if (!['valona','nota','xmark'].includes(popupElement.type)) return;
+  pushHistory();
+  popupElement.size = Math.max(0.4, Math.min(6, (popupElement.size || 1) + delta));
+  _actualizarEscalaVal(popupElement);
+  redraw();
+}
+document.getElementById('popupEscalaMenos').onclick = () => _ajustarEscala(-0.15);
+document.getElementById('popupEscalaMas').onclick = () => _ajustarEscala(0.15);
 
 document.getElementById('popupLabel').addEventListener('input', (e) => {
   if (!popupElement) return;
@@ -2947,6 +3209,25 @@ if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
 })();
 document.getElementById('prjFecha').value = new Date().toISOString().split('T')[0];
 project.fecha = document.getElementById('prjFecha').value;
+
+// ---------- Ocultar / mostrar barra de herramientas ----------
+function toggleTools() {
+  const app = document.querySelector('.app');
+  const hidden = app.classList.toggle('tools-hidden');
+  const icon = document.getElementById('toolsToggleIcon');
+  if (icon) icon.textContent = hidden ? '⌃' : '⌄';
+  const btn = document.getElementById('toolsToggle');
+  if (btn) btn.title = hidden ? 'Mostrar herramientas' : 'Ocultar herramientas';
+  try { localStorage.setItem('digi_tools_hidden', hidden ? '1' : '0'); } catch (e) {}
+}
+window.toggleTools = toggleTools;
+try {
+  if (localStorage.getItem('digi_tools_hidden') === '1') {
+    document.querySelector('.app').classList.add('tools-hidden');
+    document.getElementById('toolsToggleIcon').textContent = '⌃';
+    document.getElementById('toolsToggle').title = 'Mostrar herramientas';
+  }
+} catch (e) {}
 </script>
 </body>
 </html>
