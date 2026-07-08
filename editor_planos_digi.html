@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no, viewport-fit=cover">
-<title>Editor de Planos DIGI v8.4</title>
+<title>Editor de Planos DIGI v8.5</title>
 <meta name="theme-color" content="#1e2a3a">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -418,7 +418,7 @@
 <div class="app">
 
   <div class="topbar">
-    <span class="logo">DIGI<span class="ver">v8.4</span></span>
+    <span class="logo">DIGI<span class="ver">v8.5</span></span>
     <button id="btnHome" title="Ir al inicio" style="display:none">🏠</button>
     <span id="topbarTitle" style="font-size:12px;font-weight:600;color:#cbd5e1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:40vw;"></span>
     <span class="spacer"></span>
@@ -440,7 +440,7 @@
       <div class="logo-wrap">
         <div class="logo-main">DIGI</div>
         <div class="logo-sub">Editor de Planos</div>
-        <div class="logo-ver">v8.4</div>
+        <div class="logo-ver">v8.5</div>
       </div>
       <div class="cable-line"></div>
       <p>Carga una imagen o PDF del plano base para comenzar</p>
@@ -611,10 +611,11 @@
   </div>
   <button onclick="sincronizarConNube()" style="width:100%;padding:10px;border-radius:6px;background:#0369a1;color:#e0f2fe;font-weight:600;border:none;cursor:pointer;font-size:12px;margin-bottom:10px;">🔄 Sincronizar con Drive (PC ↔ móvil)</button>
   <div id="projectsFilters" style="display:flex;gap:5px;flex-wrap:wrap;margin-bottom:10px;">
-    <button class="filtro-btn" data-filtro="todos" style="flex:1;min-width:64px;padding:7px 4px;border-radius:6px;border:1px solid #2a3140;background:#2563eb;color:#fff;font-size:11px;font-weight:600;cursor:pointer;">Todos</button>
-    <button class="filtro-btn" data-filtro="curso" style="flex:1;min-width:64px;padding:7px 4px;border-radius:6px;border:1px solid #2a3140;background:#1f2530;color:#e5e7eb;font-size:11px;font-weight:600;cursor:pointer;">En curso</button>
-    <button class="filtro-btn" data-filtro="terminado" style="flex:1;min-width:64px;padding:7px 4px;border-radius:6px;border:1px solid #2a3140;background:#1f2530;color:#e5e7eb;font-size:11px;font-weight:600;cursor:pointer;">Pend. enviar</button>
-    <button class="filtro-btn" data-filtro="enviado" style="flex:1;min-width:64px;padding:7px 4px;border-radius:6px;border:1px solid #2a3140;background:#1f2530;color:#e5e7eb;font-size:11px;font-weight:600;cursor:pointer;">Enviado</button>
+    <button class="filtro-btn" data-filtro="todos" style="flex:1;min-width:58px;padding:7px 4px;border-radius:6px;border:1px solid #2a3140;background:#2563eb;color:#fff;font-size:11px;font-weight:600;cursor:pointer;">Todos</button>
+    <button class="filtro-btn" data-filtro="curso" style="flex:1;min-width:58px;padding:7px 4px;border-radius:6px;border:1px solid #2a3140;background:#1f2530;color:#e5e7eb;font-size:11px;font-weight:600;cursor:pointer;">En curso</button>
+    <button class="filtro-btn" data-filtro="recibido" style="flex:1;min-width:58px;padding:7px 4px;border-radius:6px;border:1px solid #2a3140;background:#1f2530;color:#e5e7eb;font-size:11px;font-weight:600;cursor:pointer;">Recibido</button>
+    <button class="filtro-btn" data-filtro="terminado" style="flex:1;min-width:58px;padding:7px 4px;border-radius:6px;border:1px solid #2a3140;background:#1f2530;color:#e5e7eb;font-size:11px;font-weight:600;cursor:pointer;">Pend. enviar</button>
+    <button class="filtro-btn" data-filtro="enviado" style="flex:1;min-width:58px;padding:7px 4px;border-radius:6px;border:1px solid #2a3140;background:#1f2530;color:#e5e7eb;font-size:11px;font-weight:600;cursor:pointer;">Enviado</button>
   </div>
   <div id="projectsList"></div>
   <h2 style="margin-top:18px;">💼 Proyecto editable (archivo)</h2>
@@ -1342,6 +1343,8 @@ function insertarListaNotas() {
   let bloque = state.elements.find(e => e.type === 'text' && e._esListaNotas);
   if (bloque) {
     bloque.text = texto;
+    // Recalcular el tamaño de la caja según el nuevo texto (evita que el ✱ salga fuera)
+    delete bloque.boxW; delete bloque.boxH;
   } else {
     // Colocar en una esquina visible del plano
     bloque = { id: newId(), type: 'text', x: 30, y: state.bgHeight - 30 - notas.length*16,
@@ -2665,6 +2668,13 @@ async function refrescarPanelProyectos() {
     if (_filtroProyectos !== 'todos') {
       list = list.filter(p => (p.estado || 'recibido') === _filtroProyectos);
     }
+    // Ordenar por estado: En curso → Recibido → Pend. enviar → Enviado → otros (dentro, por fecha)
+    const ordenEstado = { curso: 0, recibido: 1, terminado: 2, enviado: 3 };
+    list.sort((a, b) => {
+      const pa = ordenEstado[a.estado] ?? 4, pb = ordenEstado[b.estado] ?? 4;
+      if (pa !== pb) return pa - pb;
+      return (b.fecha || '').localeCompare(a.fecha || '');
+    });
     // El proyecto en uso siempre el primero de la lista
     if (state.currentProjectId) {
       list.sort((a, b) => (a.id === state.currentProjectId ? -1 : 0) - (b.id === state.currentProjectId ? -1 : 0));
