@@ -1,7 +1,7 @@
 // Service Worker · DIGI App Planos
 // Estrategia "network-first": intenta siempre la red (para tener la última versión);
 // si no hay internet, sirve la última copia cacheada (funciona offline).
-const CACHE = 'digi-planos-v8.5';
+const CACHE = 'digi-planos-v8.6';
 
 self.addEventListener('install', (e) => {
   self.skipWaiting(); // activa la versión nueva de inmediato

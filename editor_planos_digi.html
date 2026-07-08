@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no, viewport-fit=cover">
-<title>Editor de Planos DIGI v8.5</title>
+<title>Editor de Planos DIGI v8.6</title>
 <meta name="theme-color" content="#1e2a3a">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -418,7 +418,7 @@
 <div class="app">
 
   <div class="topbar">
-    <span class="logo">DIGI<span class="ver">v8.5</span></span>
+    <span class="logo">DIGI<span class="ver">v8.6</span></span>
     <button id="btnHome" title="Ir al inicio" style="display:none">🏠</button>
     <span id="topbarTitle" style="font-size:12px;font-weight:600;color:#cbd5e1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:40vw;"></span>
     <span class="spacer"></span>
@@ -440,7 +440,7 @@
       <div class="logo-wrap">
         <div class="logo-main">DIGI</div>
         <div class="logo-sub">Editor de Planos</div>
-        <div class="logo-ver">v8.5</div>
+        <div class="logo-ver">v8.6</div>
       </div>
       <div class="cable-line"></div>
       <p>Carga una imagen o PDF del plano base para comenzar</p>
@@ -610,13 +610,15 @@
     Se guardan automáticamente en este navegador mientras trabajas. Toca uno para reabrirlo.
   </div>
   <button onclick="sincronizarConNube()" style="width:100%;padding:10px;border-radius:6px;background:#0369a1;color:#e0f2fe;font-weight:600;border:none;cursor:pointer;font-size:12px;margin-bottom:10px;">🔄 Sincronizar con Drive (PC ↔ móvil)</button>
-  <div id="projectsFilters" style="display:flex;gap:5px;flex-wrap:wrap;margin-bottom:10px;">
-    <button class="filtro-btn" data-filtro="todos" style="flex:1;min-width:58px;padding:7px 4px;border-radius:6px;border:1px solid #2a3140;background:#2563eb;color:#fff;font-size:11px;font-weight:600;cursor:pointer;">Todos</button>
+  <div id="projectsFilters" style="display:flex;gap:5px;flex-wrap:wrap;margin-bottom:8px;">
     <button class="filtro-btn" data-filtro="curso" style="flex:1;min-width:58px;padding:7px 4px;border-radius:6px;border:1px solid #2a3140;background:#1f2530;color:#e5e7eb;font-size:11px;font-weight:600;cursor:pointer;">En curso</button>
     <button class="filtro-btn" data-filtro="recibido" style="flex:1;min-width:58px;padding:7px 4px;border-radius:6px;border:1px solid #2a3140;background:#1f2530;color:#e5e7eb;font-size:11px;font-weight:600;cursor:pointer;">Recibido</button>
     <button class="filtro-btn" data-filtro="terminado" style="flex:1;min-width:58px;padding:7px 4px;border-radius:6px;border:1px solid #2a3140;background:#1f2530;color:#e5e7eb;font-size:11px;font-weight:600;cursor:pointer;">Pend. enviar</button>
     <button class="filtro-btn" data-filtro="enviado" style="flex:1;min-width:58px;padding:7px 4px;border-radius:6px;border:1px solid #2a3140;background:#1f2530;color:#e5e7eb;font-size:11px;font-weight:600;cursor:pointer;">Enviado</button>
+    <button class="filtro-btn" data-filtro="otros" style="flex:1;min-width:58px;padding:7px 4px;border-radius:6px;border:1px solid #2a3140;background:#1f2530;color:#e5e7eb;font-size:11px;font-weight:600;cursor:pointer;">Otros</button>
+    <button class="filtro-btn" data-filtro="todos" style="flex:1;min-width:58px;padding:7px 4px;border-radius:6px;border:1px solid #2a3140;background:#1f2530;color:#e5e7eb;font-size:11px;font-weight:600;cursor:pointer;">Todos</button>
   </div>
+  <select id="filtroPeriodo" style="width:100%;margin-bottom:10px;padding:8px 10px;background:#1f2530;border:1px solid #2a3140;border-radius:6px;color:#e5e7eb;font-size:12px;display:none;"></select>
   <div id="projectsList"></div>
   <h2 style="margin-top:18px;">💼 Proyecto editable (archivo)</h2>
   <div style="font-size:11px;color:#9ca3af;margin-bottom:10px;line-height:1.4">
@@ -2245,7 +2247,7 @@ stageEl.addEventListener('contextmenu', (e) => e.preventDefault());
 // ============================================================
 document.getElementById('btnSettings').onclick = () => openPanel('settingsPanel');
 document.getElementById('btnProject').onclick = () => openPanel('projectPanel');
-document.getElementById('btnRecientes').onclick = () => { openPanel('projectsPanel'); refrescarPanelProyectos(); };
+document.getElementById('btnRecientes').onclick = () => { _filtroProyectos = 'curso'; _filtroPeriodo = ''; openPanel('projectsPanel'); refrescarPanelProyectos(); };
 document.getElementById('fileInputEditable').onchange = (e) => { const f = e.target.files[0]; if (f) importarEditable(f); e.target.value = ''; };
 // Botón Inicio: vuelve a la pantalla de bienvenida (el plano actual queda guardado)
 function irAInicio() {
@@ -2597,8 +2599,10 @@ const ESTADOS = {
   curso:     { label: 'En curso',  color: '#2563eb' },
   terminado: { label: 'Terminado', color: '#d97706' },
   enviado:   { label: 'Enviado',   color: '#16a34a' },
+  otros:     { label: 'Otros',     color: '#8b5cf6' },
 };
-let _filtroProyectos = 'todos';
+let _filtroProyectos = 'curso';
+let _filtroPeriodo = ''; // filtro de mes/año dentro de "Todos"
 
 // Cambia un campo del proyecto en IndexedDB y refresca
 async function actualizarCampoProyecto(id, campo, valor) {
@@ -2664,12 +2668,25 @@ async function refrescarPanelProyectos() {
   });
   try {
     let list = await listarProyectos();
-    // Aplicar filtro
+    // Selector de periodo (mes/año): solo visible en "Todos"
+    const selP = document.getElementById('filtroPeriodo');
+    if (_filtroProyectos === 'todos') {
+      const meses = [...new Set(list.map(p => (p.fecha || '').slice(0, 7)).filter(Boolean))].sort().reverse();
+      const nombresMes = ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
+      selP.innerHTML = '<option value="">Cualquier fecha</option>' +
+        meses.map(m => { const [y, mm] = m.split('-'); return `<option value="${m}">${nombresMes[+mm-1]} ${y}</option>`; }).join('');
+      selP.value = _filtroPeriodo;
+      selP.style.display = meses.length > 1 ? 'block' : 'none';
+      if (_filtroPeriodo) list = list.filter(p => (p.fecha || '').slice(0, 7) === _filtroPeriodo);
+    } else {
+      selP.style.display = 'none';
+    }
+    // Aplicar filtro de estado
     if (_filtroProyectos !== 'todos') {
       list = list.filter(p => (p.estado || 'recibido') === _filtroProyectos);
     }
     // Ordenar por estado: En curso → Recibido → Pend. enviar → Enviado → otros (dentro, por fecha)
-    const ordenEstado = { curso: 0, recibido: 1, terminado: 2, enviado: 3 };
+    const ordenEstado = { curso: 0, recibido: 1, terminado: 2, enviado: 3, otros: 4 };
     list.sort((a, b) => {
       const pa = ordenEstado[a.estado] ?? 4, pb = ordenEstado[b.estado] ?? 4;
       if (pa !== pb) return pa - pb;
@@ -2723,7 +2740,7 @@ async function refrescarPanelProyectos() {
       // Selector de estado (desplegable directo)
       const sel = document.createElement('select');
       sel.style.cssText = `flex:2;min-width:0;padding:6px 4px;border-radius:5px;border:none;background:${est.color};color:#fff;font-size:11px;font-weight:700;cursor:pointer;`;
-      ['recibido','curso','terminado','enviado'].forEach(k => {
+      ['recibido','curso','terminado','enviado','otros'].forEach(k => {
         const o = document.createElement('option');
         o.value = k; o.textContent = ESTADOS[k].label;
         o.style.background = '#1f2530'; o.style.color = '#fff';
@@ -2784,8 +2801,10 @@ async function refrescarPanelProyectos() {
 // Conectar botones de filtro (una sola vez)
 function _initFiltrosProyectos() {
   document.querySelectorAll('.filtro-btn').forEach(b => {
-    b.onclick = () => { _filtroProyectos = b.dataset.filtro; refrescarPanelProyectos(); };
+    b.onclick = () => { _filtroProyectos = b.dataset.filtro; if (b.dataset.filtro !== 'todos') _filtroPeriodo = ''; refrescarPanelProyectos(); };
   });
+  const selP = document.getElementById('filtroPeriodo');
+  if (selP) selP.onchange = () => { _filtroPeriodo = selP.value; refrescarPanelProyectos(); };
 }
 
 function syncProjectToUI() {
