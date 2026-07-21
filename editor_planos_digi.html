@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no, viewport-fit=cover">
-<title>Editor de Planos DIGI v8.6</title>
+<title>Editor de Planos DIGI v8.7</title>
 <meta name="theme-color" content="#1e2a3a">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -418,7 +418,7 @@
 <div class="app">
 
   <div class="topbar">
-    <span class="logo">DIGI<span class="ver">v8.6</span></span>
+    <span class="logo">DIGI<span class="ver">v8.7</span></span>
     <button id="btnHome" title="Ir al inicio" style="display:none">🏠</button>
     <span id="topbarTitle" style="font-size:12px;font-weight:600;color:#cbd5e1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:40vw;"></span>
     <span class="spacer"></span>
@@ -440,7 +440,7 @@
       <div class="logo-wrap">
         <div class="logo-main">DIGI</div>
         <div class="logo-sub">Editor de Planos</div>
-        <div class="logo-ver">v8.6</div>
+        <div class="logo-ver">v8.7</div>
       </div>
       <div class="cable-line"></div>
       <p>Carga una imagen o PDF del plano base para comenzar</p>
@@ -967,7 +967,6 @@ function calcPerCable() {
 function updateCalc() {
   const m = calcMalla();
   const { porLetra, porCable } = calcMallaDetallada();
-  const perCable = calcPerCable();
 
   // Desglose de malla por letra
   const letraStr = Object.entries(porLetra)
@@ -998,27 +997,8 @@ function updateCalc() {
   }
   html += mallaCableRows;
 
-  if (perCable.length === 0) {
-    html += `<div class="row" style="margin-top:8px"><span>Cable</span><span>0 m</span></div>`;
-  } else {
-    // Contar cuántas tiradas hay por tipo de cable
-    const totalPorTipo = {};
-    perCable.forEach(c => { totalPorTipo[c.type] = (totalPorTipo[c.type] || 0) + 1; });
-    const contadorTipo = {};
-
-    html += `<div style="margin-top:10px;border-top:1px solid #2a2f3a;padding-top:8px;font-size:10px;color:#6b7280;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px">Tiradas</div>`;
-    perCable.forEach(c => {
-      contadorTipo[c.type] = (contadorTipo[c.type] || 0) + 1;
-      const hayVarias = totalPorTipo[c.type] > 1;
-      const tiradaLabel = hayVarias ? ` <span style="color:#6b7280;font-weight:400;font-size:10px">T${contadorTipo[c.type]}</span>` : '';
-      html += `<div class="row cable-row">
-        <span><span class="sw-mini" style="background:${c.color}"></span><b>${c.type}</b>${tiradaLabel}</span>
-        <span><b>${c.total} m</b></span></div>
-        <div class="row" style="font-size:10px;color:#9ca3af;margin-left:18px;margin-bottom:4px">
-          <span>tramos <b>${c.tramos}</b> · valonas <b>${c.valonas}</b></span>
-        </div>`;
-    });
-  }
+  // (Los metros de cable / "Tiradas" se ocultan a propósito: en el resumen
+  //  del proyecto basta con la malla.)
   document.getElementById('calcBox').innerHTML = html;
 }
 
@@ -2615,21 +2595,30 @@ async function actualizarCampoProyecto(id, campo, valor) {
 
 // Actualiza solo metadata + elements del proyecto actual (no la imagen)
 let _autoSaveTimer = null;
+
+// Guarda YA el estado actual en IndexedDB (cancela el debounce pendiente).
+// Se usa antes de sincronizar para que el último dato dibujado no se pierda.
+async function flushAutoGuardar() {
+  clearTimeout(_autoSaveTimer);
+  if (!state.currentProjectId || !state.bgLoaded) return;
+  try {
+    const existing = await _getProject(state.currentProjectId);
+    if (!existing) return;
+    existing.title = getTitle();
+    existing.fecha = new Date().toISOString();
+    existing.elements = state.elements;
+    existing.project = { ...project };
+    existing.activeCableId = state.activeCableId;
+    await _putProject(existing);
+  } catch(e) { console.warn('flushAutoGuardar:', e); }
+}
+
 function autoGuardar() {
   if (!state.currentProjectId || !state.bgLoaded) return;
   clearTimeout(_autoSaveTimer);
   _autoSaveTimer = setTimeout(async () => {
-    try {
-      const existing = await _getProject(state.currentProjectId);
-      if (!existing) return;
-      existing.title = getTitle();
-      existing.fecha = new Date().toISOString();
-      existing.elements = state.elements;
-      existing.project = { ...project };
-      existing.activeCableId = state.activeCableId;
-      await _putProject(existing);
-      if (typeof autoSyncNube === 'function') autoSyncNube();
-    } catch(e) { console.warn('autoGuardar:', e); }
+    await flushAutoGuardar();
+    if (typeof autoSyncNube === 'function') autoSyncNube();
   }, 1500);
 }
 
@@ -3110,6 +3099,7 @@ async function sincronizarConNube() {
   if (!driveClientId()) { toast('Configura Drive en Ajustes'); return; }
   toast('🔄 Sincronizando...');
   try {
+    await flushAutoGuardar(); // guarda YA el último dato antes de comparar con Drive
     await _driveGetToken(false).catch(() => _driveGetToken(true));
     // Fusionar marcas de borrado local + nube
     const tombNube = await _bajarTombstonesNube();
