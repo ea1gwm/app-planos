@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no, viewport-fit=cover">
-<title>Editor de Planos DIGI v8.7</title>
+<title>Editor de Planos DIGI v8.8</title>
 <meta name="theme-color" content="#1e2a3a">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -418,7 +418,7 @@
 <div class="app">
 
   <div class="topbar">
-    <span class="logo">DIGI<span class="ver">v8.7</span></span>
+    <span class="logo">DIGI<span class="ver">v8.8</span></span>
     <button id="btnHome" title="Ir al inicio" style="display:none">🏠</button>
     <span id="topbarTitle" style="font-size:12px;font-weight:600;color:#cbd5e1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:40vw;"></span>
     <span class="spacer"></span>
@@ -440,7 +440,7 @@
       <div class="logo-wrap">
         <div class="logo-main">DIGI</div>
         <div class="logo-sub">Editor de Planos</div>
-        <div class="logo-ver">v8.7</div>
+        <div class="logo-ver">v8.8</div>
       </div>
       <div class="cable-line"></div>
       <p>Carga una imagen o PDF del plano base para comenzar</p>
@@ -2298,10 +2298,17 @@ document.getElementById('activeCableBar').onclick = () => {
 // ============================================================
 async function generatePlanBlob(mime = 'image/png', quality) {
   const W = state.bgWidth, H = state.bgHeight;
+  // Supersampling: renderiza a mayor resolución para que las letras y líneas
+  // dibujadas por la app salgan nítidas al hacer zoom. Se limita el lado mayor
+  // a 4000 px para no agotar la memoria en móviles.
+  let factor = Math.min(2, 4000 / Math.max(W, H));
+  if (!isFinite(factor) || factor < 1) factor = 1;
   const c = document.createElement('canvas');
-  c.width = W; c.height = H;
+  c.width = Math.round(W * factor); c.height = Math.round(H * factor);
   const ctx = c.getContext('2d');
-  ctx.fillStyle = 'white'; ctx.fillRect(0, 0, c.width, c.height);
+  ctx.scale(factor, factor); // todo se dibuja en coordenadas originales (W×H)
+  ctx.imageSmoothingQuality = 'high';
+  ctx.fillStyle = 'white'; ctx.fillRect(0, 0, W, H);
   ctx.drawImage(document.getElementById('bgCanvas'), 0, 0);
   // Primero los "tapar" (blanco opaco) en modo normal, para ocultar el texto del plano
   state.elements.forEach(el => {
@@ -2380,7 +2387,7 @@ async function exportarImagen(mime, ext, quality) {
   await compartirOdescargar(blob, _baseFilename() + '.' + ext, mime);
 }
 document.getElementById('btnExport').onclick    = () => exportarImagen('image/png', 'png');
-document.getElementById('btnExportJpg').onclick = () => exportarImagen('image/jpeg', 'jpg', 0.92);
+document.getElementById('btnExportJpg').onclick = () => exportarImagen('image/jpeg', 'jpg', 0.95);
 
 // Descarga PDF (carga jsPDF de CDN solo la primera vez)
 async function _cargarJsPDF() {
@@ -2396,7 +2403,7 @@ async function _cargarJsPDF() {
 // Genera el blob del PDF (A4, auto-orientación). Reutilizable por descarga y Drive.
 async function generarPdfBlob() {
   await _cargarJsPDF();
-  const blob = await generatePlanBlob('image/jpeg', 0.92);
+  const blob = await generatePlanBlob('image/jpeg', 0.95);
   const dataUrl = await new Promise(r => { const fr = new FileReader(); fr.onload = () => r(fr.result); fr.readAsDataURL(blob); });
   const img = await new Promise((r, j) => { const i = new Image(); i.onload = () => r(i); i.onerror = j; i.src = dataUrl; });
   const aspect = img.width / img.height;
