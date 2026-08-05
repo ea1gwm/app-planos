@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no, viewport-fit=cover">
-<title>Editor de Planos DIGI v8.8</title>
+<title>Editor de Planos DIGI v8.9</title>
 <meta name="theme-color" content="#1e2a3a">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -418,7 +418,7 @@
 <div class="app">
 
   <div class="topbar">
-    <span class="logo">DIGI<span class="ver">v8.8</span></span>
+    <span class="logo">DIGI<span class="ver">v8.9</span></span>
     <button id="btnHome" title="Ir al inicio" style="display:none">🏠</button>
     <span id="topbarTitle" style="font-size:12px;font-weight:600;color:#cbd5e1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:40vw;"></span>
     <span class="spacer"></span>
@@ -440,7 +440,7 @@
       <div class="logo-wrap">
         <div class="logo-main">DIGI</div>
         <div class="logo-sub">Editor de Planos</div>
-        <div class="logo-ver">v8.8</div>
+        <div class="logo-ver">v8.9</div>
       </div>
       <div class="cable-line"></div>
       <p>Carga una imagen o PDF del plano base para comenzar</p>
@@ -2602,11 +2602,18 @@ async function actualizarCampoProyecto(id, campo, valor) {
 
 // Actualiza solo metadata + elements del proyecto actual (no la imagen)
 let _autoSaveTimer = null;
+// ¿Hay ediciones REALES del dibujo sin persistir todavía? Solo se pone a true
+// cuando el usuario dibuja/borra algo (pushHistory → autoGuardar). Es la clave
+// para que sincronizar un plano solo-abierto (sin editar) NO le cambie la fecha
+// y por tanto NO pise la versión buena que tenga otro dispositivo.
+let _cambiosSinGuardar = false;
 
-// Guarda YA el estado actual en IndexedDB (cancela el debounce pendiente).
-// Se usa antes de sincronizar para que el último dato dibujado no se pierda.
+// Guarda YA el estado actual en IndexedDB, pero SOLO si hay cambios sin guardar.
+// Se usa antes de sincronizar: así el último dato dibujado no se pierde, y a la
+// vez un plano abierto pero no editado no altera su fecha al sincronizar.
 async function flushAutoGuardar() {
   clearTimeout(_autoSaveTimer);
+  if (!_cambiosSinGuardar) return;
   if (!state.currentProjectId || !state.bgLoaded) return;
   try {
     const existing = await _getProject(state.currentProjectId);
@@ -2617,11 +2624,13 @@ async function flushAutoGuardar() {
     existing.project = { ...project };
     existing.activeCableId = state.activeCableId;
     await _putProject(existing);
+    _cambiosSinGuardar = false;
   } catch(e) { console.warn('flushAutoGuardar:', e); }
 }
 
 function autoGuardar() {
   if (!state.currentProjectId || !state.bgLoaded) return;
+  _cambiosSinGuardar = true; // ha habido una edición real
   clearTimeout(_autoSaveTimer);
   _autoSaveTimer = setTimeout(async () => {
     await flushAutoGuardar();
@@ -2643,6 +2652,7 @@ async function abrirProyecto(id) {
     const aliasInp = document.getElementById('prjAlias'); if (aliasInp) aliasInp.value = state.currentAlias;
     const notasInp = document.getElementById('prjNotas'); if (notasInp) notasInp.value = entry.notas || '';
     Object.assign(project, entry.project || {});
+    _cambiosSinGuardar = false; // recién cargado: sin ediciones pendientes
     syncProjectToUI();
     setLocked(true); // se abre en modo solo ver; toca 🔒 para editar
     redraw();
