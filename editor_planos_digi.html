@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no, viewport-fit=cover">
-<title>Editor de Planos DIGI v8.9</title>
+<title>Editor de Planos DIGI v9.0</title>
 <meta name="theme-color" content="#1e2a3a">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -418,7 +418,7 @@
 <div class="app">
 
   <div class="topbar">
-    <span class="logo">DIGI<span class="ver">v8.9</span></span>
+    <span class="logo">DIGI<span class="ver">v9.0</span></span>
     <button id="btnHome" title="Ir al inicio" style="display:none">🏠</button>
     <span id="topbarTitle" style="font-size:12px;font-weight:600;color:#cbd5e1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:40vw;"></span>
     <span class="spacer"></span>
@@ -440,7 +440,7 @@
       <div class="logo-wrap">
         <div class="logo-main">DIGI</div>
         <div class="logo-sub">Editor de Planos</div>
-        <div class="logo-ver">v8.9</div>
+        <div class="logo-ver">v9.0</div>
       </div>
       <div class="cable-line"></div>
       <p>Carga una imagen o PDF del plano base para comenzar</p>
@@ -628,6 +628,12 @@
     <button onclick="exportarEditable()" style="flex:1;padding:10px;border-radius:6px;background:#047857;color:#d1fae5;font-weight:600;border:none;cursor:pointer;font-size:12px;">📤 Exportar editable</button>
     <button onclick="document.getElementById('fileInputEditable').click()" style="flex:1;padding:10px;border-radius:6px;background:#1e40af;color:#dbeafe;font-weight:600;border:none;cursor:pointer;font-size:12px;">📥 Cargar editable</button>
     <input type="file" id="fileInputEditable" accept=".dproject,application/json" style="display:none">
+  </div>
+  <div style="font-size:11px;color:#9ca3af;margin-top:12px;margin-bottom:4px;">Copia de seguridad de <b>TODOS</b> los planos en un solo archivo (para guardar en el PC o pasar a otro dispositivo).</div>
+  <div style="display:flex;gap:8px;flex-wrap:wrap;">
+    <button onclick="exportarTodos()" style="flex:1;padding:10px;border-radius:6px;background:#7c3aed;color:#ede9fe;font-weight:600;border:none;cursor:pointer;font-size:12px;">💾 Copia de TODOS</button>
+    <button onclick="document.getElementById('fileInputBackup').click()" style="flex:1;padding:10px;border-radius:6px;background:#4338ca;color:#e0e7ff;font-weight:600;border:none;cursor:pointer;font-size:12px;">♻️ Restaurar copia</button>
+    <input type="file" id="fileInputBackup" accept=".dpbackup,application/json" style="display:none">
   </div>
 </div>
 
@@ -2229,6 +2235,7 @@ document.getElementById('btnSettings').onclick = () => openPanel('settingsPanel'
 document.getElementById('btnProject').onclick = () => openPanel('projectPanel');
 document.getElementById('btnRecientes').onclick = () => { _filtroProyectos = 'curso'; _filtroPeriodo = ''; openPanel('projectsPanel'); refrescarPanelProyectos(); };
 document.getElementById('fileInputEditable').onchange = (e) => { const f = e.target.files[0]; if (f) importarEditable(f); e.target.value = ''; };
+document.getElementById('fileInputBackup').onchange = (e) => { const f = e.target.files[0]; if (f) importarTodos(f); e.target.value = ''; };
 // Botón Inicio: vuelve a la pantalla de bienvenida (el plano actual queda guardado)
 function irAInicio() {
   if (state.pendingPath) finishPath();
@@ -2798,6 +2805,20 @@ async function refrescarPanelProyectos() {
         }
       }));
       card.appendChild(acc);
+      // Fila de sincronización forzada (solo si Drive está conectado)
+      if (driveClientId() && localStorage.getItem('digi_drive_connected') === '1') {
+        const acc2 = document.createElement('div');
+        acc2.style.cssText = 'display:flex;gap:5px;margin-top:5px;';
+        acc2.appendChild(mkBtn('⬆️ Subir esta', '#065f46', '#d1fae5', async () => {
+          if (!confirm('Subir ESTA versión al Drive y reemplazar la que haya allí.\n\n(Úsalo cuando la copia buena es la de este dispositivo.)\n\n¿Continuar?')) return;
+          await forzarSubirNube(p.id);
+        }));
+        acc2.appendChild(mkBtn('⬇️ Traer Drive', '#1e3a5f', '#dbeafe', async () => {
+          if (!confirm('Traer la versión del Drive y reemplazar la de ESTE dispositivo.\n\n(Úsalo cuando la copia buena está en el Drive / otro dispositivo.)\n\n¿Continuar?')) return;
+          await forzarBajarNube(p.id);
+        }));
+        card.appendChild(acc2);
+      }
       cont.appendChild(card);
     });
   } catch (e) {
@@ -2866,6 +2887,57 @@ async function importarEditable(file) {
 }
 window.exportarEditable = exportarEditable;
 window.importarEditable = importarEditable;
+
+// Exporta TODOS los planos en un solo archivo .dpbackup (copia de seguridad)
+async function exportarTodos() {
+  const list = await listarProyectos();
+  if (!list.length) { toast('No hay planos que guardar'); return; }
+  toast('Preparando copia de ' + list.length + ' plano(s)...');
+  const planos = [];
+  for (const p of list) {
+    const full = await _getProject(p.id);
+    if (!full || !full.imgBlob) continue;
+    const imgDataUrl = await _blobToDataUrl(full.imgBlob);
+    planos.push({
+      id: full.id, fecha: full.fecha, title: full.title, estado: full.estado || 'recibido',
+      alias: full.alias || '', notas: full.notas || '',
+      bgWidth: full.bgWidth, bgHeight: full.bgHeight,
+      elements: full.elements || [], project: full.project || {}, activeCableId: full.activeCableId || null,
+      imgDataUrl
+    });
+  }
+  const bundle = { version: 1, type: 'digi-planos-backup', fecha: new Date().toISOString(), planos };
+  const blob = new Blob([JSON.stringify(bundle)], { type: 'application/json' });
+  const fname = 'Planos DIGI - copia ' + new Date().toISOString().slice(0, 10) + ' (' + planos.length + ').dpbackup';
+  await compartirOdescargar(blob, fname, 'application/json');
+}
+window.exportarTodos = exportarTodos;
+
+// Restaura un archivo .dpbackup: vuelca todos sus planos en IndexedDB.
+// Conserva el id de cada plano: si ya existe uno con ese id, se sobrescribe.
+async function importarTodos(file) {
+  try {
+    const data = JSON.parse(await file.text());
+    if (data.type !== 'digi-planos-backup' || !Array.isArray(data.planos)) throw new Error('Archivo no reconocido');
+    if (!confirm('Restaurar ' + data.planos.length + ' plano(s).\nLos que ya tengas con el mismo identificador se sobrescribirán con los del archivo.\n\n¿Continuar?')) return;
+    let n = 0;
+    for (const pl of data.planos) {
+      if (!pl.id || !pl.imgDataUrl) continue;
+      const imgBlob = await (await fetch(pl.imgDataUrl)).blob();
+      const thumbBlob = await _thumbFromDataUrl(pl.imgDataUrl);
+      await _putProject({
+        id: pl.id, fecha: pl.fecha, title: pl.title, estado: pl.estado || 'recibido',
+        alias: pl.alias || '', notas: pl.notas || '',
+        bgWidth: pl.bgWidth, bgHeight: pl.bgHeight, imgBlob, thumbBlob,
+        elements: pl.elements || [], project: pl.project || {}, activeCableId: pl.activeCableId || null
+      });
+      n++;
+    }
+    refrescarPanelProyectos();
+    toast('✓ Restaurados ' + n + ' plano(s)');
+  } catch (e) { toast('Error: ' + e.message); console.warn('importarTodos:', e); }
+}
+window.importarTodos = importarTodos;
 
 // ============================================================
 // GOOGLE DRIVE (subida a carpetas por estado)
@@ -3190,6 +3262,42 @@ async function _syncProyectoSiConectado(id) {
   catch(err) { console.warn('_syncProyectoSiConectado:', err); }
 }
 window._syncProyectoSiConectado = _syncProyectoSiConectado;
+
+// FORZAR: sube la versión LOCAL de este plano al Drive, machacando la de allí
+// (sin mirar fechas). Para resolver conflictos: "la buena es la de este dispositivo".
+async function forzarSubirNube(id) {
+  if (!driveClientId() || localStorage.getItem('digi_drive_connected') !== '1') { toast('Conecta Drive primero'); return; }
+  const e = await _getProject(id);
+  if (!e) { toast('No encontrado'); return; }
+  toast('⬆️ Subiendo al Drive...');
+  try {
+    await _driveGetToken(false).catch(() => _driveGetToken(true));
+    e.fecha = new Date().toISOString(); // que gane también en futuras sincronizaciones
+    await _putProject(e);
+    await subirProyectoNube(e);
+    refrescarPanelProyectos();
+    toast('✓ Subida esta versión al Drive');
+  } catch (err) { toast('Error: ' + err.message); console.warn('forzarSubirNube:', err); }
+}
+window.forzarSubirNube = forzarSubirNube;
+
+// FORZAR: trae la versión del DRIVE de este plano, machacando la local (sin mirar
+// fechas). Para resolver conflictos: "la buena está en el Drive / otro dispositivo".
+async function forzarBajarNube(id) {
+  if (!driveClientId() || localStorage.getItem('digi_drive_connected') !== '1') { toast('Conecta Drive primero'); return; }
+  toast('⬇️ Trayendo del Drive...');
+  try {
+    await _driveGetToken(false).catch(() => _driveGetToken(true));
+    const files = await listarProyectosNube();
+    const f = files.find(x => x.name.replace(/\.json$/, '') === id);
+    if (!f) { toast('Ese plano no está en el Drive'); return; }
+    await descargarProyectoNube(f.id);
+    if (state.currentProjectId === id) { await abrirProyecto(id); } // recargar la vista si está abierto
+    refrescarPanelProyectos();
+    toast('✓ Traída la versión del Drive');
+  } catch (err) { toast('Error: ' + err.message); console.warn('forzarBajarNube:', err); }
+}
+window.forzarBajarNube = forzarBajarNube;
 
 // ============================================================
 // INIT
