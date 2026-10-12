@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no, viewport-fit=cover">
-<title>Editor de Planos DIGI v9.0</title>
+<title>Editor de Planos DIGI v9.1</title>
 <meta name="theme-color" content="#1e2a3a">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -418,7 +418,7 @@
 <div class="app">
 
   <div class="topbar">
-    <span class="logo">DIGI<span class="ver">v9.0</span></span>
+    <span class="logo">DIGI<span class="ver">v9.1</span></span>
     <button id="btnHome" title="Ir al inicio" style="display:none">🏠</button>
     <span id="topbarTitle" style="font-size:12px;font-weight:600;color:#cbd5e1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:40vw;"></span>
     <span class="spacer"></span>
@@ -440,7 +440,7 @@
       <div class="logo-wrap">
         <div class="logo-main">DIGI</div>
         <div class="logo-sub">Editor de Planos</div>
-        <div class="logo-ver">v9.0</div>
+        <div class="logo-ver">v9.1</div>
       </div>
       <div class="cable-line"></div>
       <p>Carga una imagen o PDF del plano base para comenzar</p>
@@ -1456,18 +1456,11 @@ function onPointerDown(evt) {
       pushHistory();
       return;
     }
-    const newEl = createElementAt(sp.x, sp.y);
-    if (newEl) {
-      pushHistory();
-      state.elements.push(newEl);
-      state.selectedId = newEl.id;
-      dragState.type = 'placement-move';
-      dragState.placedEl = newEl;
-      dragState.esNuevo = true; // recién creado: abrir popup al soltar para escribir
-      dragState.elX0 = newEl.x;
-      dragState.elY0 = newEl.y;
-      redraw();
-    }
+    // No crear al instante: decidir al soltar. Un TOQUE coloca el elemento;
+    // un ARRASTRE desplaza el plano (así puedes moverte sin soltar valonas).
+    dragState.type = 'pending-place';
+    dragState.panX0 = state.panX;
+    dragState.panY0 = state.panY;
     return;
   }
 
@@ -1522,6 +1515,13 @@ function onPointerMove(evt) {
   if (Math.abs(dx) > DRAG_THRESHOLD || Math.abs(dy) > DRAG_THRESHOLD) {
     dragState.moved = true;
     clearLongPress();
+  }
+
+  // PENDING-PLACE: con herramienta de colocación, un arrastre desplaza el plano
+  // (en vez de colocar el elemento). El toque sin movimiento lo coloca al soltar.
+  if (dragState.type === 'pending-place' && dragState.moved) {
+    dragState.type = 'pan';
+    document.getElementById('stage').classList.add('panning');
   }
 
   // BOX-RESIZE: estirar la caja de fondo del texto
@@ -1622,6 +1622,23 @@ function onPointerUp(evt) {
     return;
   }
   if (dragState.type === 'pan' || dragState.type === 'elem-move' || dragState.type === 'box-resize' || dragState.type === 'scale-resize') {
+    dragState = null;
+    return;
+  }
+
+  // Toque sin movimiento con herramienta de colocación: coloca el elemento aquí
+  if (dragState.type === 'pending-place' && !dragState.moved) {
+    const newEl = createElementAt(dragState.startStageX, dragState.startStageY);
+    if (newEl) {
+      pushHistory();
+      state.elements.push(newEl);
+      state.selectedId = newEl.id;
+      redraw();
+      // Abrir popup para escribir solo en los que llevan texto/medida
+      if (newEl.type === 'tramo' || newEl.type === 'text' || newEl.type === 'elem' || newEl.type === 'nota') {
+        openElemPopup(newEl, evt);
+      }
+    }
     dragState = null;
     return;
   }
@@ -1886,6 +1903,7 @@ function closePopup() { document.getElementById('elemPopup').classList.remove('o
 
 document.getElementById('popupOk').onclick = () => {
   if (!popupElement) return;
+  pushHistory(); // registra el cambio (para deshacer) Y marca que hay que guardar/sincronizar
   const labelInput = document.getElementById('popupLabel');
   const metersInput = document.getElementById('popupMeters');
   const bgCheck = document.getElementById('popupBg');
@@ -2890,6 +2908,7 @@ window.importarEditable = importarEditable;
 
 // Exporta TODOS los planos en un solo archivo .dpbackup (copia de seguridad)
 async function exportarTodos() {
+  await flushAutoGuardar(); // vuelca la última anotación del plano abierto antes de la copia
   const list = await listarProyectos();
   if (!list.length) { toast('No hay planos que guardar'); return; }
   toast('Preparando copia de ' + list.length + ' plano(s)...');
@@ -3267,6 +3286,7 @@ window._syncProyectoSiConectado = _syncProyectoSiConectado;
 // (sin mirar fechas). Para resolver conflictos: "la buena es la de este dispositivo".
 async function forzarSubirNube(id) {
   if (!driveClientId() || localStorage.getItem('digi_drive_connected') !== '1') { toast('Conecta Drive primero'); return; }
+  await flushAutoGuardar(); // vuelca a disco la última anotación antes de subir
   const e = await _getProject(id);
   if (!e) { toast('No encontrado'); return; }
   toast('⬆️ Subiendo al Drive...');
