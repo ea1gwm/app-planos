@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no, viewport-fit=cover">
-<title>Editor de Planos DIGI v9.1</title>
+<title>Editor de Planos DIGI v9.2</title>
 <meta name="theme-color" content="#1e2a3a">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -418,7 +418,7 @@
 <div class="app">
 
   <div class="topbar">
-    <span class="logo">DIGI<span class="ver">v9.1</span></span>
+    <span class="logo">DIGI<span class="ver">v9.2</span></span>
     <button id="btnHome" title="Ir al inicio" style="display:none">🏠</button>
     <span id="topbarTitle" style="font-size:12px;font-weight:600;color:#cbd5e1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:40vw;"></span>
     <span class="spacer"></span>
@@ -440,7 +440,7 @@
       <div class="logo-wrap">
         <div class="logo-main">DIGI</div>
         <div class="logo-sub">Editor de Planos</div>
-        <div class="logo-ver">v9.1</div>
+        <div class="logo-ver">v9.2</div>
       </div>
       <div class="cable-line"></div>
       <p>Carga una imagen o PDF del plano base para comenzar</p>
@@ -530,13 +530,9 @@
     <label>Tamaño de letra (px)</label>
     <input type="number" id="popupSize" min="8" max="48" step="1" value="14">
   </div>
-  <div class="field check" id="popupBoldWrap" style="display:none">
-    <input type="checkbox" id="popupBold">
-    <label for="popupBold">Negrita</label>
-  </div>
-  <div class="field check" id="popupBgWrap" style="display:none">
-    <input type="checkbox" id="popupBg">
-    <label for="popupBg">Caja blanca de fondo</label>
+  <div class="field" id="popupBoldBgRow" style="display:none;flex-direction:row;gap:20px;align-items:center;flex-wrap:wrap;">
+    <label style="display:flex;align-items:center;gap:6px;margin:0;cursor:pointer;"><input type="checkbox" id="popupBold"> Negrita</label>
+    <label style="display:flex;align-items:center;gap:6px;margin:0;cursor:pointer;"><input type="checkbox" id="popupBg"> Caja blanca de fondo</label>
   </div>
   <div class="field" id="popupBgColorWrap" style="display:none">
     <label>Resaltar fondo (rotulador)</label>
@@ -545,21 +541,22 @@
       <button type="button" class="bg-color-btn" data-color="#fef08a" style="flex:1;padding:6px;border-radius:4px;background:#fef08a;color:#000;font-size:11px;font-weight:600;">🟨 Amarillo</button>
       <button type="button" class="bg-color-btn" data-color="#fb923c" style="flex:1;padding:6px;border-radius:4px;background:#fb923c;color:#000;font-size:11px;font-weight:600;">🟧 Naranja</button>
     </div>
-    <label style="margin-top:8px;">Fondo sólido color cable (cubre la casilla)</label>
-    <div id="popupCableColors" style="display:flex;gap:6px;flex-wrap:wrap;"></div>
-    <label style="margin-top:10px;">Color del texto</label>
-    <div style="display:flex;gap:6px;margin-bottom:4px;">
-      <button type="button" class="text-color-btn" data-color="" style="flex:1;padding:6px;border-radius:4px;background:#1f2530;border:1px solid #2a3140;font-size:11px;color:#e5e7eb;">Auto</button>
-      <button type="button" class="text-color-btn" data-color="#000000" style="flex:1;padding:6px;border-radius:4px;background:#000;color:#fff;font-size:11px;font-weight:600;border:1px solid #444;">Negro</button>
-      <button type="button" class="text-color-btn" data-color="#ffffff" style="flex:1;padding:6px;border-radius:4px;background:#fff;color:#000;font-size:11px;font-weight:600;border:1px solid #aaa;">Blanco</button>
+    <button type="button" id="popupToggleColores" style="margin-top:8px;padding:6px 8px;border-radius:4px;background:#1f2530;border:1px solid #2a3140;color:#9ca3af;font-size:11px;cursor:pointer;width:100%;text-align:left;">⚙️ Más color (cable / texto) ▾</button>
+    <div id="popupColoresAvanzado" style="display:none;">
+      <label style="margin-top:8px;">Fondo sólido color cable (cubre la casilla)</label>
+      <div id="popupCableColors" style="display:flex;gap:6px;flex-wrap:wrap;"></div>
+      <label style="margin-top:10px;">Color del texto</label>
+      <div style="display:flex;gap:6px;margin-bottom:4px;">
+        <button type="button" class="text-color-btn" data-color="" style="flex:1;padding:6px;border-radius:4px;background:#1f2530;border:1px solid #2a3140;font-size:11px;color:#e5e7eb;">Auto</button>
+        <button type="button" class="text-color-btn" data-color="#000000" style="flex:1;padding:6px;border-radius:4px;background:#000;color:#fff;font-size:11px;font-weight:600;border:1px solid #444;">Negro</button>
+        <button type="button" class="text-color-btn" data-color="#ffffff" style="flex:1;padding:6px;border-radius:4px;background:#fff;color:#000;font-size:11px;font-weight:600;border:1px solid #aaa;">Blanco</button>
+      </div>
+      <div id="popupTextCableColors" style="display:flex;gap:6px;flex-wrap:wrap;"></div>
     </div>
-    <div id="popupTextCableColors" style="display:flex;gap:6px;flex-wrap:wrap;"></div>
   </div>
   <div class="btn-row">
     <button class="del" id="popupDel">Borrar</button>
     <button class="del-near" id="popupDelNear" title="Borra todos los elementos dentro de 25px">Borrar cerca</button>
-    <button class="repeat-down" id="popupRepeatDown" title="Duplicar el texto debajo (aprende la separación)" style="display:none">↓ Repetir</button>
-    <button class="repeat-blank" id="popupRepeatBlank" title="Saltar abajo con caja vacía para escribir distinto" style="display:none">↓ Siguiente</button>
     <button class="ok" id="popupOk">OK</button>
   </div>
 </div>
@@ -618,6 +615,7 @@
     <button class="filtro-btn" data-filtro="otros" style="flex:1;min-width:58px;padding:7px 4px;border-radius:6px;border:1px solid #2a3140;background:#1f2530;color:#e5e7eb;font-size:11px;font-weight:600;cursor:pointer;">Otros</button>
     <button class="filtro-btn" data-filtro="todos" style="flex:1;min-width:58px;padding:7px 4px;border-radius:6px;border:1px solid #2a3140;background:#1f2530;color:#e5e7eb;font-size:11px;font-weight:600;cursor:pointer;">Todos</button>
   </div>
+  <input id="buscarProyecto" type="search" placeholder="🔎 Buscar: nombre, empalme, lugar o anotación…" autocomplete="off" style="width:100%;margin-bottom:8px;padding:9px 10px;background:#1f2530;border:1px solid #2a3140;border-radius:6px;color:#e5e7eb;font-size:12px;box-sizing:border-box;">
   <select id="filtroPeriodo" style="width:100%;margin-bottom:10px;padding:8px 10px;background:#1f2530;border:1px solid #2a3140;border-radius:6px;color:#e5e7eb;font-size:12px;display:none;"></select>
   <div id="projectsList"></div>
   <h2 style="margin-top:18px;">💼 Proyecto editable (archivo)</h2>
@@ -1749,23 +1747,19 @@ function openElemPopup(el, evt) {
   const metersWrap = document.getElementById('popupMetersWrap');
   const metersInput = document.getElementById('popupMeters');
   const metersLabel = document.getElementById('popupMetersLabel');
-  const bgWrap = document.getElementById('popupBgWrap');
+  const boldBgRow = document.getElementById('popupBoldBgRow');
   const bgCheck = document.getElementById('popupBg');
   const sizeWrap = document.getElementById('popupSizeWrap');
   const sizeInput = document.getElementById('popupSize');
-  const boldWrap = document.getElementById('popupBoldWrap');
   const boldCheck = document.getElementById('popupBold');
   const cableWrap = document.getElementById('popupCableWrap');
 
   labelWrap.style.display = 'block';
   metersWrap.style.display = 'none';
-  bgWrap.style.display = 'none';
+  boldBgRow.style.display = 'none';
   sizeWrap.style.display = 'none';
-  boldWrap.style.display = 'none';
   cableWrap.style.display = 'none';
   document.getElementById('popupBgColorWrap').style.display = 'none';
-  document.getElementById('popupRepeatDown').style.display = 'none';
-  document.getElementById('popupRepeatBlank').style.display = 'none';
   // Botones de tamaño − / + para elementos escalables (valona, nota, X)
   const escalaWrap = document.getElementById('popupEscalaWrap');
   if (el.type === 'valona' || el.type === 'nota' || el.type === 'xmark') {
@@ -1806,15 +1800,23 @@ function openElemPopup(el, evt) {
     labelLabel.textContent = 'Texto (| para nueva línea)';
     labelInput.placeholder = 'Ej: Casa nº 5 · Tlf 666...';
     labelInput.value = (el.text || '').replace(/\n/g, '|');
-    bgWrap.style.display = 'flex';
+    boldBgRow.style.display = 'flex';
     bgCheck.checked = el.background === true;
     sizeWrap.style.display = 'block';
     sizeInput.value = el.fontSize || settings.defaultTextSize;
-    boldWrap.style.display = 'flex';
     boldCheck.checked = el.bold === true;
     document.getElementById('popupBgColorWrap').style.display = 'block';
-    document.getElementById('popupRepeatDown').style.display = 'block';
-    document.getElementById('popupRepeatBlank').style.display = 'block';
+    // Desplegable "Más color": plegado por defecto; abierto si ya se usó (fondo cable o color texto)
+    const _adv = document.getElementById('popupColoresAvanzado');
+    const _tgl = document.getElementById('popupToggleColores');
+    const _abierto = !!(el.bgSolid || el.textColor);
+    _adv.style.display = _abierto ? 'block' : 'none';
+    _tgl.textContent = '⚙️ Más color (cable / texto) ' + (_abierto ? '▴' : '▾');
+    _tgl.onclick = () => {
+      const show = _adv.style.display === 'none';
+      _adv.style.display = show ? 'block' : 'none';
+      _tgl.textContent = '⚙️ Más color (cable / texto) ' + (show ? '▴' : '▾');
+    };
     // Mark active highlight button
     document.querySelectorAll('.bg-color-btn').forEach(b => {
       b.style.outline = (!el.bgSolid && b.dataset.color === (el.bgHighlight || '')) ? '2px solid #2563eb' : 'none';
@@ -1960,68 +1962,6 @@ document.getElementById('popupDelNear').onclick = () => {
   closePopup();
   redraw();
   toast(`Borrados ${toRemove.length} elementos`);
-};
-
-// Aprende la separación vertical hacia abajo mirando textos vecinos en la misma columna.
-// soloMismoTexto=true → solo cuenta hermanos con el mismo texto (para ↓ Repetir).
-// soloMismoTexto=false → cualquier texto en la columna (para ↓ Siguiente).
-// Separación vertical recordada para repetir textos en cadena
-let _repetSepY = null;
-function separacionRepetir(el) {
-  // 1) Si hay otra copia en la misma columna, usar esa distancia real (la que fijó el usuario)
-  const cand = state.elements.filter(e =>
-    e.type === 'text' && e !== el && Math.abs((e.x || 0) - (el.x || 0)) < 30
-  );
-  if (cand.length > 0) {
-    cand.sort((a, b) => Math.abs(a.y - el.y) - Math.abs(b.y - el.y));
-    const dy = Math.abs(cand[0].y - el.y);
-    if (dy >= 6) { _repetSepY = dy; return dy; }
-  }
-  // 2) Si ya repetimos antes en esta sesión, mantener la misma distancia
-  if (_repetSepY && _repetSepY >= 6) return _repetSepY;
-  // 3) Por defecto: una línea de texto con su interlineado
-  const fs = el.fontSize || settings.defaultTextSize;
-  _repetSepY = el.boxH || Math.round(fs * 1.6);
-  return _repetSepY;
-}
-
-// ↓ Repetir: duplica el texto debajo a la misma distancia (encadenable)
-document.getElementById('popupRepeatDown').onclick = () => {
-  if (!popupElement || popupElement.type !== 'text') return;
-  const el = popupElement;
-  const dy = separacionRepetir(el);
-  pushHistory();
-  const nueva = JSON.parse(JSON.stringify(el));
-  nueva.id = newId();
-  nueva.y = el.y + dy;
-  state.elements.push(nueva);
-  state.selectedId = nueva.id;
-  popupElement = nueva; // el popup pasa a la nueva → pulsar de nuevo encadena
-  document.getElementById('popupLabel').value = (nueva.text || '').replace(/\n/g, '|');
-  redraw();
-  toast('Copia añadida · pulsa otra vez para más');
-};
-
-// ↓ Siguiente: salta a la siguiente línea con caja vacía para escribir distinto
-document.getElementById('popupRepeatBlank').onclick = () => {
-  if (!popupElement || popupElement.type !== 'text') return;
-  const el = popupElement;
-  const dy = separacionRepetir(el);
-  pushHistory();
-  const nueva = JSON.parse(JSON.stringify(el));
-  nueva.id = newId();
-  nueva.y = el.y + dy;
-  nueva.text = '';
-  nueva._textColorManual = false;
-  nueva.textColor = null;
-  state.elements.push(nueva);
-  state.selectedId = nueva.id;
-  popupElement = nueva;
-  const labelInput = document.getElementById('popupLabel');
-  labelInput.value = '';
-  setTimeout(() => { labelInput.focus(); labelInput.select && labelInput.select(); }, 30);
-  redraw();
-  toast('Listo para escribir la siguiente');
 };
 
 // Botones de tamaño (−/+) para valona, nota y X — método táctil fiable
@@ -2251,7 +2191,7 @@ stageEl.addEventListener('contextmenu', (e) => e.preventDefault());
 // ============================================================
 document.getElementById('btnSettings').onclick = () => openPanel('settingsPanel');
 document.getElementById('btnProject').onclick = () => openPanel('projectPanel');
-document.getElementById('btnRecientes').onclick = () => { _filtroProyectos = 'curso'; _filtroPeriodo = ''; openPanel('projectsPanel'); refrescarPanelProyectos(); };
+document.getElementById('btnRecientes').onclick = () => { _filtroProyectos = 'curso'; _filtroPeriodo = ''; _busquedaProyectos = ''; const bi = document.getElementById('buscarProyecto'); if (bi) bi.value = ''; openPanel('projectsPanel'); refrescarPanelProyectos(); };
 document.getElementById('fileInputEditable').onchange = (e) => { const f = e.target.files[0]; if (f) importarEditable(f); e.target.value = ''; };
 document.getElementById('fileInputBackup').onchange = (e) => { const f = e.target.files[0]; if (f) importarTodos(f); e.target.value = ''; };
 // Botón Inicio: vuelve a la pantalla de bienvenida (el plano actual queda guardado)
@@ -2615,6 +2555,24 @@ const ESTADOS = {
 };
 let _filtroProyectos = 'curso';
 let _filtroPeriodo = ''; // filtro de mes/año dentro de "Todos"
+let _busquedaProyectos = ''; // término de búsqueda (ya normalizado, minúsculas sin tildes)
+
+// Normaliza texto para buscar: minúsculas y sin tildes
+function _normalizaTexto(s) {
+  return (s || '').toLowerCase()
+    .replace(/[áàä]/g, 'a').replace(/[éèë]/g, 'e').replace(/[íìï]/g, 'i')
+    .replace(/[óòö]/g, 'o').replace(/[úùü]/g, 'u');
+}
+// Todo el texto por el que se puede encontrar un plano: título, alias, notas y anotaciones
+function _textoBuscable(p) {
+  let t = (p.title || '') + ' ' + (p.alias || '') + ' ' + (p.notas || '');
+  (p.elements || []).forEach(el => {
+    if (el.text) t += ' ' + el.text;              // textos y notas (*)
+    if (el.label) t += ' ' + el.label;            // etiquetas de ARQ/CR
+    if (el.letra) t += ' ' + (el.meters || '') + el.letra; // tramos: "43B"
+  });
+  return _normalizaTexto(t);
+}
 
 // Cambia un campo del proyecto en IndexedDB y refresca
 async function actualizarCampoProyecto(id, campo, valor) {
@@ -2699,22 +2657,30 @@ async function refrescarPanelProyectos() {
   });
   try {
     let list = await listarProyectos();
-    // Selector de periodo (mes/año): solo visible en "Todos"
     const selP = document.getElementById('filtroPeriodo');
-    if (_filtroProyectos === 'todos') {
-      const meses = [...new Set(list.map(p => (p.fecha || '').slice(0, 7)).filter(Boolean))].sort().reverse();
-      const nombresMes = ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
-      selP.innerHTML = '<option value="">Cualquier fecha</option>' +
-        meses.map(m => { const [y, mm] = m.split('-'); return `<option value="${m}">${nombresMes[+mm-1]} ${y}</option>`; }).join('');
-      selP.value = _filtroPeriodo;
-      selP.style.display = meses.length > 1 ? 'block' : 'none';
-      if (_filtroPeriodo) list = list.filter(p => (p.fecha || '').slice(0, 7) === _filtroPeriodo);
-    } else {
+    if (_busquedaProyectos) {
+      // BÚSQUEDA: busca entre TODOS los planos, ignorando estado y mes.
+      // Varias palabras = deben aparecer todas (en cualquier orden).
       selP.style.display = 'none';
-    }
-    // Aplicar filtro de estado
-    if (_filtroProyectos !== 'todos') {
-      list = list.filter(p => (p.estado || 'recibido') === _filtroProyectos);
+      const palabras = _busquedaProyectos.split(/\s+/).filter(Boolean);
+      list = list.filter(p => { const t = _textoBuscable(p); return palabras.every(w => t.includes(w)); });
+    } else {
+      // Selector de periodo (mes/año): solo visible en "Todos"
+      if (_filtroProyectos === 'todos') {
+        const meses = [...new Set(list.map(p => (p.fecha || '').slice(0, 7)).filter(Boolean))].sort().reverse();
+        const nombresMes = ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
+        selP.innerHTML = '<option value="">Cualquier fecha</option>' +
+          meses.map(m => { const [y, mm] = m.split('-'); return `<option value="${m}">${nombresMes[+mm-1]} ${y}</option>`; }).join('');
+        selP.value = _filtroPeriodo;
+        selP.style.display = meses.length > 1 ? 'block' : 'none';
+        if (_filtroPeriodo) list = list.filter(p => (p.fecha || '').slice(0, 7) === _filtroPeriodo);
+      } else {
+        selP.style.display = 'none';
+      }
+      // Aplicar filtro de estado
+      if (_filtroProyectos !== 'todos') {
+        list = list.filter(p => (p.estado || 'recibido') === _filtroProyectos);
+      }
     }
     // Ordenar por estado: En curso → Recibido → Pend. enviar → Enviado → otros (dentro, por fecha)
     const ordenEstado = { curso: 0, recibido: 1, terminado: 2, enviado: 3, otros: 4 };
@@ -2728,8 +2694,9 @@ async function refrescarPanelProyectos() {
       list.sort((a, b) => (a.id === state.currentProjectId ? -1 : 0) - (b.id === state.currentProjectId ? -1 : 0));
     }
     if (list.length === 0) {
-      cont.innerHTML = '<div style="color:#6b7280;font-size:12px;padding:10px">' +
-        (_filtroProyectos === 'todos' ? 'Aún no hay proyectos guardados. Carga un plano y se guardará automáticamente.' : 'No hay proyectos en este filtro.') + '</div>';
+      const msg = _busquedaProyectos ? 'No hay planos que coincidan con la búsqueda.'
+        : (_filtroProyectos === 'todos' ? 'Aún no hay proyectos guardados. Carga un plano y se guardará automáticamente.' : 'No hay proyectos en este filtro.');
+      cont.innerHTML = '<div style="color:#6b7280;font-size:12px;padding:10px">' + msg + '</div>';
       return;
     }
     cont.innerHTML = '';
@@ -2846,10 +2813,18 @@ async function refrescarPanelProyectos() {
 // Conectar botones de filtro (una sola vez)
 function _initFiltrosProyectos() {
   document.querySelectorAll('.filtro-btn').forEach(b => {
-    b.onclick = () => { _filtroProyectos = b.dataset.filtro; if (b.dataset.filtro !== 'todos') _filtroPeriodo = ''; refrescarPanelProyectos(); };
+    b.onclick = () => {
+      _filtroProyectos = b.dataset.filtro;
+      if (b.dataset.filtro !== 'todos') _filtroPeriodo = '';
+      _busquedaProyectos = ''; // tocar un filtro cancela la búsqueda
+      const bi = document.getElementById('buscarProyecto'); if (bi) bi.value = '';
+      refrescarPanelProyectos();
+    };
   });
   const selP = document.getElementById('filtroPeriodo');
   if (selP) selP.onchange = () => { _filtroPeriodo = selP.value; refrescarPanelProyectos(); };
+  const bInp = document.getElementById('buscarProyecto');
+  if (bInp) bInp.oninput = () => { _busquedaProyectos = _normalizaTexto(bInp.value.trim()); refrescarPanelProyectos(); };
 }
 
 function syncProjectToUI() {
