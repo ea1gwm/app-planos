@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no, viewport-fit=cover">
-<title>Editor de Planos DIGI v9.2</title>
+<title>Editor de Planos DIGI v9.3</title>
 <meta name="theme-color" content="#1e2a3a">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -418,7 +418,7 @@
 <div class="app">
 
   <div class="topbar">
-    <span class="logo">DIGI<span class="ver">v9.2</span></span>
+    <span class="logo">DIGI<span class="ver">v9.3</span></span>
     <button id="btnHome" title="Ir al inicio" style="display:none">🏠</button>
     <span id="topbarTitle" style="font-size:12px;font-weight:600;color:#cbd5e1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:40vw;"></span>
     <span class="spacer"></span>
@@ -440,7 +440,7 @@
       <div class="logo-wrap">
         <div class="logo-main">DIGI</div>
         <div class="logo-sub">Editor de Planos</div>
-        <div class="logo-ver">v9.2</div>
+        <div class="logo-ver">v9.3</div>
       </div>
       <div class="cable-line"></div>
       <p>Carga una imagen o PDF del plano base para comenzar</p>
@@ -477,25 +477,14 @@
     <button class="close" onclick="closeDrawer()">✕</button>
   </div>
   <div class="drawer-section">
-    <div class="label">Cables (clic = nuevo · clic en cable existente = activar)</div>
-    <div class="tool-row" id="drawerCables"></div>
-  </div>
-  <div class="drawer-section">
-    <div class="label">Tramos (metros + letra)</div>
-    <div class="tool-row" id="drawerTramos"></div>
-  </div>
-  <div class="drawer-section">
     <div class="label">Elementos</div>
     <div class="tool-row" id="drawerElems"></div>
   </div>
   <div class="drawer-section">
-    <div class="label">Anotaciones y valonas</div>
+    <div class="label">Anotaciones</div>
     <div class="tool-row" id="drawerAnnots"></div>
-    <div class="tool-row" style="margin-top:6px">
-      <button class="tool" style="background:#7f1d1d;color:#fecaca" onclick="insertarListaNotas();closeDrawer()">📋 Insertar/actualizar lista de notas</button>
-    </div>
     <div style="font-size:10px;color:#4b5563;margin-top:4px;line-height:1.4">
-      Coloca asteriscos ✱ en el mapa, toca cada uno para escribir su nota, y pulsa aquí para generar el recuadro con todas las notas numeradas.
+      ✱ Asterisco: coloca marcas en el plano y toca cada una para escribir su nota. Luego pulsa <b>📋 Insertar nota</b> para generar el recuadro con todas las notas numeradas.
     </div>
   </div>
 </div>
@@ -652,8 +641,6 @@
     <textarea id="prjNotas" rows="3" placeholder="Observaciones del plano..." style="resize:vertical;"></textarea>
   </div>
 
-  <h2 style="margin-top:16px;">📐 Malla</h2>
-  <div class="calc" id="calcBox"></div>
 </div>
 
 <div class="toast" id="toast" style="display:none"></div>
@@ -671,15 +658,19 @@ const CABLE_TYPES = [
   { id: '288KP', color: '#00FFFF' }, { id: '512KP', color: '#FF0000' },
   { id: '576FO', color: '#8B0000' },
 ];
+// Cables que ya aparecen directamente en la barra (el resto va en el desplegable)
+const BARRA_CABLES = ['12KP', '24KP', '48KP', '96KP'];
+// Letras de tramo que ya aparecen directamente en la barra (el resto va en el desplegable)
+const BARRA_TRAMOS = ['A', 'B', 'F'];
 
 const TRAMO_LETRAS = [
-  { letra: 'A', desc: 'Canalizado vacío',      sumaMalla: true  },
-  { letra: 'B', desc: 'Canalizado compartido', sumaMalla: true  },
-  { letra: 'F', desc: 'Malla existente',       sumaMalla: false },
-  { letra: 'C', desc: 'Subconducto',           sumaMalla: false },
-  { letra: 'X', desc: 'Subc. otra compañía',   sumaMalla: false },
-  { letra: 'D', desc: 'Salida lateral',        sumaMalla: false },
-  { letra: '', desc: 'Aéreo',                  sumaMalla: false },
+  { letra: 'A', desc: 'Canalizado vacío'      },
+  { letra: 'B', desc: 'Canalizado compartido' },
+  { letra: 'F', desc: 'Malla existente'       },
+  { letra: 'C', desc: 'Subconducto'           },
+  { letra: 'X', desc: 'Subc. otra compañía'   },
+  { letra: 'D', desc: 'Salida lateral'        },
+  { letra: '', desc: 'Aéreo'                  },
 ];
 
 const ELEM_TYPES = [
@@ -698,6 +689,7 @@ const COMPACT_TOOLS = [
   { type: 'cable', cable: '24KP' },
   { type: 'cable', cable: '48KP' },
   { type: 'cable', cable: '96KP' },
+  { type: 'cable-more' },
   { type: 'divider' },
   { type: 'text' },
   { type: 'hl', color: '#fef08a', icon: '🟨' },
@@ -706,6 +698,7 @@ const COMPACT_TOOLS = [
   { type: 'tramo', letra: 'A' },
   { type: 'tramo', letra: 'B' },
   { type: 'tramo', letra: 'F' },
+  { type: 'tramo-more' },
   { type: 'divider' },
   { type: 'valona', meters: 20, icon: '🟠20' },
   { type: 'valona', meters: 10, icon: '🟠10' },
@@ -776,13 +769,44 @@ function buildToolbar() {
       const t = TRAMO_LETRAS.find(x => x.letra === c.letra);
       b.innerHTML = `<span class="icon">${c.letra}</span>`;
       b.title = t.desc;
-      b.onclick = () => selectTool('tramo', { letra: t.letra, sumaMalla: t.sumaMalla });
+      b.onclick = () => selectTool('tramo', { letra: t.letra });
       b.dataset.tool = 'tramo-' + t.letra;
     } else if (c.type === 'valona') {
       b.innerHTML = `<span class="icon">${c.icon}</span>`;
       const tid = c.meters === 20 ? 'valona-cr' : 'valona-arq';
       b.onclick = () => selectTool(tid, { meters: c.meters });
       b.dataset.tool = tid;
+    } else if (c.type === 'cable-more') {
+      // Desplegable con el resto de cables (144, 192, 288, 512, 576…)
+      b.id = 'btnCableMore';
+      b.title = 'Más cables';
+      b.innerHTML = `<span class="sw" style="background:linear-gradient(135deg,#1a1a1a,#D3D3D3 50%,#00FFFF)"></span>▾`;
+      b.onclick = () => {
+        const extra = CABLE_TYPES.filter(ct => !BARRA_CABLES.includes(ct.id));
+        abrirMenuBarra(b, extra.map(ct => ({
+          html: `<span class="sw" style="background:${ct.color}"></span>${ct.id}`,
+          onClick: () => selectTool('cable', { cableType: ct.id, color: ct.color })
+        })));
+      };
+    } else if (c.type === 'tramo-more') {
+      // Desplegable con el resto de letras de tramo (C, X, D, ?, Aéreo, u otra)
+      b.id = 'btnTramoMore';
+      b.title = 'Más letras de tramo';
+      b.innerHTML = `<span class="icon">⋯</span>`;
+      b.onclick = () => {
+        const items = [];
+        ['C', 'X', 'D'].forEach(L => {
+          const t = TRAMO_LETRAS.find(x => x.letra === L);
+          items.push({ html: `<b>${L}</b> · ${t ? t.desc : ''}`, onClick: () => selectTool('tramo', { letra: L }) });
+        });
+        items.push({ html: `<b>?</b> · sin determinar`, onClick: () => selectTool('tramo', { letra: '?' }) });
+        items.push({ html: `— · Aéreo`, onClick: () => selectTool('tramo', { letra: '' }) });
+        items.push({ html: `✏️ Otra letra…`, onClick: () => {
+          const v = prompt('Letra del tramo:', '');
+          if (v !== null) { selectTool('tramo', { letra: v.trim().toUpperCase() }); toast('Tramo letra "' + (v.trim().toUpperCase() || '—') + '"'); }
+        } });
+        abrirMenuBarra(b, items);
+      };
     } else if (c.type === 'more') {
       b.innerHTML = `⋯ Más`;
       b.style.background = '#2563eb';
@@ -797,28 +821,7 @@ function buildToolbar() {
     tc.appendChild(b);
   });
 
-  // FULL DRAWER
-  const drawerCables = document.getElementById('drawerCables');
-  CABLE_TYPES.forEach(ct => {
-    const b = document.createElement('button');
-    b.className = 'tool';
-    b.innerHTML = `<span class="sw" style="background:${ct.color}"></span>${ct.id}`;
-    b.onclick = () => { selectTool('cable', { cableType: ct.id, color: ct.color }); closeDrawer(); };
-    b.dataset.tool = 'cable-' + ct.id;
-    drawerCables.appendChild(b);
-  });
-
-  const drawerTramos = document.getElementById('drawerTramos');
-  TRAMO_LETRAS.forEach(t => {
-    const b = document.createElement('button');
-    b.className = 'tool';
-    b.title = t.desc;
-    b.innerHTML = `<span class="icon">${t.letra || '—'}</span>`;
-    b.onclick = () => { selectTool('tramo', { letra: t.letra, sumaMalla: t.sumaMalla }); closeDrawer(); };
-    b.dataset.tool = 'tramo-' + (t.letra || 'AEREO');
-    drawerTramos.appendChild(b);
-  });
-
+  // FULL DRAWER — cables y tramos ya no van aquí (están en la barra con su desplegable)
   const drawerElems = document.getElementById('drawerElems');
   ELEM_TYPES.forEach(e => {
     const b = document.createElement('button');
@@ -830,14 +833,12 @@ function buildToolbar() {
   });
 
   const drawerAnnots = document.getElementById('drawerAnnots');
+  // (Las valonas no se repiten aquí: ya están en la barra de abajo)
   [
-    { id: 'valona-cr', label: '🟠 Valona 20', meters: 20 },
-    { id: 'valona-arq', label: '🟠 Valona 10', meters: 10 },
     { id: 'hl-yellow', label: '🟨 Amarillo', color: '#fef08a' },
     { id: 'hl-orange', label: '🟧 Naranja', color: '#fb923c' },
     { id: 'text', label: '📝 Texto' },
     { id: 'xmark', label: '❌ X anular' },
-    { id: 'nota', label: '✱ Asterisco/nota' },
     { id: 'cover', label: '⬜ Tapar texto' },
   ].forEach(a => {
     const b = document.createElement('button');
@@ -847,6 +848,57 @@ function buildToolbar() {
     b.dataset.tool = a.id;
     drawerAnnots.appendChild(b);
   });
+  // Botón dividido del asterisco: izquierda = colocar ✱ · derecha = insertar la lista de notas en el plano
+  const notaSplit = document.createElement('div');
+  notaSplit.style.cssText = 'display:flex;border-radius:8px;overflow:hidden;border:1px solid #2a3140;flex:1 1 100%;';
+  const mitadAster = document.createElement('button');
+  mitadAster.className = 'tool';
+  mitadAster.dataset.tool = 'nota';
+  mitadAster.innerHTML = '✱ Asterisco';
+  mitadAster.style.cssText = 'flex:1;border-radius:0;border:none;';
+  mitadAster.onclick = () => { selectTool('nota', {}); closeDrawer(); };
+  const mitadLista = document.createElement('button');
+  mitadLista.className = 'tool';
+  mitadLista.innerHTML = '📋 Insertar nota';
+  mitadLista.title = 'Genera en el plano el recuadro con todas las notas de los asteriscos';
+  mitadLista.style.cssText = 'flex:1;border-radius:0;border:none;border-left:1px solid #2a3140;background:#7f1d1d;color:#fecaca;';
+  mitadLista.onclick = () => { insertarListaNotas(); closeDrawer(); };
+  notaSplit.appendChild(mitadAster);
+  notaSplit.appendChild(mitadLista);
+  drawerAnnots.appendChild(notaSplit);
+}
+
+// ── Menú flotante para los desplegables de la barra (cables extra, letras extra) ──
+let _menuBarra = null;
+function cerrarMenuBarra() {
+  if (_menuBarra) { _menuBarra.remove(); _menuBarra = null; document.removeEventListener('pointerdown', _menuBarraFuera, true); }
+}
+function _menuBarraFuera(e) {
+  if (_menuBarra && !_menuBarra.contains(e.target) && e.target !== _menuBarra._btn && !_menuBarra._btn.contains(e.target)) cerrarMenuBarra();
+}
+function abrirMenuBarra(btn, items) {
+  if (_menuBarra && _menuBarra._btn === btn) { cerrarMenuBarra(); return; } // segundo toque = cerrar
+  cerrarMenuBarra();
+  const menu = document.createElement('div');
+  menu._btn = btn;
+  menu.style.cssText = 'position:fixed;z-index:3000;background:#141b25;border:1px solid #2a3140;border-radius:10px;padding:6px;box-shadow:0 8px 24px rgba(0,0,0,0.5);display:flex;flex-direction:column;gap:5px;max-height:62vh;overflow:auto;min-width:130px;';
+  items.forEach(it => {
+    const b = document.createElement('button');
+    b.innerHTML = it.html;
+    b.style.cssText = 'display:flex;align-items:center;gap:8px;padding:11px 13px;border-radius:8px;border:1px solid #2a3140;background:#1f2530;color:#e5e7eb;font-size:13px;font-weight:600;cursor:pointer;text-align:left;white-space:nowrap;';
+    b.onclick = () => { cerrarMenuBarra(); it.onClick(); };
+    menu.appendChild(b);
+  });
+  document.body.appendChild(menu);
+  const r = btn.getBoundingClientRect();
+  const mw = menu.offsetWidth, mh = menu.offsetHeight;
+  let left = Math.max(8, Math.min(r.left + r.width / 2 - mw / 2, window.innerWidth - mw - 8));
+  let top = r.top - mh - 8;                 // encima del botón (la barra está abajo)
+  if (top < 8) top = Math.min(r.bottom + 8, window.innerHeight - mh - 8); // si no cabe, debajo
+  menu.style.left = left + 'px';
+  menu.style.top = top + 'px';
+  _menuBarra = menu;
+  setTimeout(() => document.addEventListener('pointerdown', _menuBarraFuera, true), 0);
 }
 
 function openDrawer() { document.getElementById('drawerFull').classList.add('open'); }
@@ -866,6 +918,11 @@ function selectTool(tool, data) {
 
 function updateToolUI() {
   document.querySelectorAll('.tool[data-tool]').forEach(b => b.classList.remove('active'));
+  // Resaltar los botones desplegables si su opción está activa
+  const cm = document.getElementById('btnCableMore');
+  if (cm) cm.classList.toggle('active', state.tool === 'cable' && !BARRA_CABLES.includes(state.toolData.cableType));
+  const tm = document.getElementById('btnTramoMore');
+  if (tm) tm.classList.toggle('active', state.tool === 'tramo' && !BARRA_TRAMOS.includes(state.toolData.letra ?? ''));
   if (!state.tool) {
     // Sin herramienta: marcar el botón "Mover" como activo
     document.querySelectorAll('.tool[data-tool="__pan__"]').forEach(b => b.classList.add('active'));
@@ -926,85 +983,6 @@ function getTitle() {
   return ['Plano', cableStr].filter(s => s).join(' ').trim() || 'Plano';
 }
 
-// ============================================================
-// CALCULATIONS
-// ============================================================
-function calcMalla() {
-  let t = 0;
-  state.elements.forEach(el => { if (el.type === 'tramo' && el.sumaMalla) t += +el.meters || 0; });
-  return t;
-}
-function calcMallaDetallada() {
-  // Totales por letra (A, B) y por cable
-  const porLetra = {};
-  const porCable = {}; // cableId → metros
-  state.elements.forEach(el => {
-    if (el.type !== 'tramo' || !el.sumaMalla) return;
-    const m = +el.meters || 0;
-    if (!m) return;
-    const letra = el.letra || '?';
-    porLetra[letra] = (porLetra[letra] || 0) + m;
-    const cableId = el.cableId || '__unassigned__';
-    porCable[cableId] = (porCable[cableId] || 0) + m;
-  });
-  return { porLetra, porCable };
-}
-function calcPerCable() {
-  const cables = state.elements.filter(e => e.type === 'cable');
-  const map = new Map();
-  cables.forEach(c => map.set(c.id, { type: c.cableType, color: c.color, tramos: 0, valonas: 0 }));
-  map.set('__unassigned__', { type: 'Sin asignar', color: '#6b7280', tramos: 0, valonas: 0 });
-  state.elements.forEach(el => {
-    const key = el.cableId && map.has(el.cableId) ? el.cableId : '__unassigned__';
-    const m = map.get(key);
-    if (el.type === 'tramo') m.tramos += +el.meters || 0;
-    else if (el.type === 'valona') m.valonas += +el.meters || 0;
-  });
-  const result = [];
-  map.forEach((v, k) => {
-    v.total = v.tramos + v.valonas;
-    if (k === '__unassigned__' && v.total === 0) return;
-    result.push({ id: k, ...v });
-  });
-  return result;
-}
-function updateCalc() {
-  const m = calcMalla();
-  const { porLetra, porCable } = calcMallaDetallada();
-
-  // Desglose de malla por letra
-  const letraStr = Object.entries(porLetra)
-    .sort((a,b) => a[0].localeCompare(b[0]))
-    .map(([l, v]) => `<b>${l||'—'}:</b> ${v} m`)
-    .join(' &nbsp;·&nbsp; ');
-
-  // Desglose de malla por cable
-  let mallaCableRows = '';
-  Object.entries(porCable).forEach(([cid, metros]) => {
-    const cable = state.elements.find(e => e.id === cid);
-    if (!cable && cid !== '__unassigned__') return;
-    const color = cable ? cable.color : '#6b7280';
-    const tipo = cable ? cable.cableType : 'Sin asignar';
-    mallaCableRows += `<div class="row" style="font-size:10px;color:#9ca3af;margin-left:10px">
-      <span><span class="sw-mini" style="background:${color}"></span>${tipo}</span>
-      <span>${metros} m</span></div>`;
-  });
-
-  let html = `
-    <div class="row" style="border-bottom:1px solid #2a2f3a;padding-bottom:6px;margin-bottom:6px">
-      <span style="font-size:11px;color:#9ca3af">MALLA TOTAL (A+B)</span>
-      <span><b style="font-size:16px;color:#60a5fa">${m} m</b></span>
-    </div>`;
-
-  if (letraStr) {
-    html += `<div class="row" style="font-size:10px;color:#6b7280;margin-bottom:2px"><span>${letraStr}</span></div>`;
-  }
-  html += mallaCableRows;
-
-  // (Los metros de cable / "Tiradas" se ocultan a propósito: en el resumen
-  //  del proyecto basta con la malla.)
-  document.getElementById('calcBox').innerHTML = html;
-}
 
 // ============================================================
 // RENDER
@@ -1073,7 +1051,6 @@ function redraw() {
     svg.appendChild(svgEl('polyline', { points: pts, stroke: state.pendingPath.color, 'stroke-width': '6', 'stroke-opacity': '0.75', fill: 'none', 'stroke-linecap': 'round', 'stroke-linejoin': 'round' }));
     state.pendingPath.points.forEach(p => svg.appendChild(svgEl('circle', { cx: p.x, cy: p.y, r: 5, fill: state.pendingPath.color, stroke: 'white', 'stroke-width': 1.5 })));
   }
-  updateCalc();
   updateActiveCableUI();
 }
 function renderElement(svg, el) {
@@ -1487,9 +1464,8 @@ function createElementAt(x, y) {
   }
   if (state.tool === 'tramo') {
     const letra = td.letra !== undefined ? td.letra : settings.defaultLetra;
-    const lt = TRAMO_LETRAS.find(t => t.letra === letra) || TRAMO_LETRAS[0];
     const nc = findNearestCable(x, y) || getActiveCable();
-    return { id: newId(), type: 'tramo', letra, sumaMalla: lt.sumaMalla, x, y, meters: 0, cableId: nc ? nc.id : null };
+    return { id: newId(), type: 'tramo', letra, x, y, meters: 0, cableId: nc ? nc.id : null };
   }
   if (state.tool === 'valona-cr') {
     const nc = findNearestCable(x, y) || getActiveCable();
@@ -1918,8 +1894,6 @@ document.getElementById('popupOk').onclick = () => {
   if (popupElement.type === 'elem') { popupElement.label = val; popupElement.cableId = cableSel.value || null; }
   else if (popupElement.type === 'tramo') {
     popupElement.letra = val.toUpperCase(); popupElement.meters = m; popupElement.fontSize = fs;
-    const t = TRAMO_LETRAS.find(x => x.letra === popupElement.letra);
-    popupElement.sumaMalla = t ? t.sumaMalla : false;
     popupElement.cableId = cableSel.value || null;
   }
   else if (popupElement.type === 'valona') { popupElement.meters = m; popupElement.cableId = cableSel.value || null; }
@@ -3301,7 +3275,6 @@ loadSettings();
 buildToolbar();
 syncSettingsToUI();
 syncProjectFromUI();
-updateCalc();
 _initFiltrosProyectos();
 // Service Worker: actualización automática (red primero) + offline
 if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
