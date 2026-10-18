@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no, viewport-fit=cover">
-<title>Editor de Planos DIGI v9.4</title>
+<title>Editor de Planos DIGI v9.5</title>
 <meta name="theme-color" content="#1e2a3a">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -418,7 +418,7 @@
 <div class="app">
 
   <div class="topbar">
-    <span class="logo">DIGI<span class="ver">v9.4</span></span>
+    <span class="logo">DIGI<span class="ver">v9.5</span></span>
     <button id="btnHome" title="Ir al inicio" style="display:none">🏠</button>
     <span id="topbarTitle" style="font-size:12px;font-weight:600;color:#cbd5e1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:40vw;"></span>
     <span class="spacer"></span>
@@ -440,7 +440,7 @@
       <div class="logo-wrap">
         <div class="logo-main">DIGI</div>
         <div class="logo-sub">Editor de Planos</div>
-        <div class="logo-ver">v9.4</div>
+        <div class="logo-ver">v9.5</div>
       </div>
       <div class="cable-line"></div>
       <p>Carga una imagen o PDF del plano base para comenzar</p>
@@ -680,8 +680,12 @@ const COMPACT_TOOLS = [
   { type: 'valona', meters: 20, icon: '🟠20' },
   { type: 'valona', meters: 10, icon: '🟠10' },
   { type: 'divider' },
-  { type: 'elem-more' },
+  { type: 'text' },
+  { type: 'hl', color: '#fef08a', icon: '🟨' },
+  { type: 'hl', color: '#fb923c', icon: '🟧' },
   { type: 'anot-more' },
+  { type: 'divider' },
+  { type: 'elem-more' },
 ];
 
 // ============================================================
@@ -793,9 +797,6 @@ function buildToolbar() {
       b.title = 'Anotaciones';
       b.innerHTML = `<span class="icon">✏️</span>Anot ▾`;
       b.onclick = () => abrirMenuBarra(b, [
-        { html: '📝 Texto', onClick: () => selectTool('text', {}) },
-        { html: '🟨 Resaltar amarillo', onClick: () => selectTool('hl-yellow', { color: '#fef08a' }) },
-        { html: '🟧 Resaltar naranja', onClick: () => selectTool('hl-orange', { color: '#fb923c' }) },
         { html: '❌ X anular', onClick: () => selectTool('xmark', {}) },
         { html: '⬜ Tapar texto', onClick: () => selectTool('cover', {}) },
         { html: '✱ Asterisco', onClick: () => selectTool('nota', {}) },
@@ -869,7 +870,7 @@ function updateToolUI() {
   const em = document.getElementById('btnElemMore');
   if (em) em.classList.toggle('active', state.tool === 'elem');
   const am = document.getElementById('btnAnotMore');
-  if (am) am.classList.toggle('active', ['text', 'hl-yellow', 'hl-orange', 'xmark', 'cover', 'nota'].includes(state.tool));
+  if (am) am.classList.toggle('active', ['xmark', 'cover', 'nota'].includes(state.tool));
   if (!state.tool) {
     // Sin herramienta: marcar el botón "Mover" como activo
     document.querySelectorAll('.tool[data-tool="__pan__"]').forEach(b => b.classList.add('active'));
