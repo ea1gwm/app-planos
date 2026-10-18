@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no, viewport-fit=cover">
-<title>Editor de Planos DIGI v9.6</title>
+<title>Editor de Planos DIGI v9.7</title>
 <meta name="theme-color" content="#1e2a3a">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -418,7 +418,7 @@
 <div class="app">
 
   <div class="topbar">
-    <span class="logo">DIGI<span class="ver">v9.6</span></span>
+    <span class="logo">DIGI<span class="ver">v9.7</span></span>
     <button id="btnHome" title="Ir al inicio" style="display:none">🏠</button>
     <span id="topbarTitle" style="font-size:12px;font-weight:600;color:#cbd5e1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:40vw;"></span>
     <span class="spacer"></span>
@@ -440,7 +440,7 @@
       <div class="logo-wrap">
         <div class="logo-main">DIGI</div>
         <div class="logo-sub">Editor de Planos</div>
-        <div class="logo-ver">v9.6</div>
+        <div class="logo-ver">v9.7</div>
       </div>
       <div class="cable-line"></div>
       <p>Carga una imagen o PDF del plano base para comenzar</p>
@@ -568,6 +568,22 @@
     <button onclick="driveConectar()" style="flex:1;min-width:120px;padding:9px;border-radius:6px;background:#2563eb;color:#fff;font-weight:600;border:none;cursor:pointer;font-size:12px;">🔑 Conectar Drive</button>
     <button onclick="driveDesconectar()" style="flex:1;min-width:120px;padding:9px;border-radius:6px;background:#1f2530;color:#e5e7eb;font-weight:600;border:none;cursor:pointer;font-size:12px;">Desconectar</button>
   </div>
+
+  <h2 style="margin-top:20px;">💼 Proyecto editable (archivo)</h2>
+  <div style="font-size:11px;color:#9ca3af;margin-bottom:10px;line-height:1.4">
+    Guarda el plano + todas las anotaciones como un archivo <b>.dproject</b> para enviar a otro móvil o conservar para otro día. Al cargarlo todo sigue siendo editable.
+  </div>
+  <div style="display:flex;gap:8px;flex-wrap:wrap;">
+    <button onclick="exportarEditable()" style="flex:1;padding:10px;border-radius:6px;background:#047857;color:#d1fae5;font-weight:600;border:none;cursor:pointer;font-size:12px;">📤 Exportar editable</button>
+    <button onclick="document.getElementById('fileInputEditable').click()" style="flex:1;padding:10px;border-radius:6px;background:#1e40af;color:#dbeafe;font-weight:600;border:none;cursor:pointer;font-size:12px;">📥 Cargar editable</button>
+    <input type="file" id="fileInputEditable" accept=".dproject,application/json" style="display:none">
+  </div>
+  <div style="font-size:11px;color:#9ca3af;margin-top:12px;margin-bottom:4px;">Copia de seguridad de <b>TODOS</b> los planos en un solo archivo (para guardar en el PC o pasar a otro dispositivo).</div>
+  <div style="display:flex;gap:8px;flex-wrap:wrap;">
+    <button onclick="exportarTodos()" style="flex:1;padding:10px;border-radius:6px;background:#7c3aed;color:#ede9fe;font-weight:600;border:none;cursor:pointer;font-size:12px;">💾 Copia de TODOS</button>
+    <button onclick="document.getElementById('fileInputBackup').click()" style="flex:1;padding:10px;border-radius:6px;background:#4338ca;color:#e0e7ff;font-weight:600;border:none;cursor:pointer;font-size:12px;">♻️ Restaurar copia</button>
+    <input type="file" id="fileInputBackup" accept=".dpbackup,application/json" style="display:none">
+  </div>
 </div>
 
 <!-- PROJECT PANEL -->
@@ -589,21 +605,6 @@
   <input id="buscarProyecto" type="search" placeholder="🔎 Buscar: nombre, empalme, lugar o anotación…" autocomplete="off" style="width:100%;margin-bottom:8px;padding:9px 10px;background:#1f2530;border:1px solid #2a3140;border-radius:6px;color:#e5e7eb;font-size:12px;box-sizing:border-box;">
   <select id="filtroPeriodo" style="width:100%;margin-bottom:10px;padding:8px 10px;background:#1f2530;border:1px solid #2a3140;border-radius:6px;color:#e5e7eb;font-size:12px;display:none;"></select>
   <div id="projectsList"></div>
-  <h2 style="margin-top:18px;">💼 Proyecto editable (archivo)</h2>
-  <div style="font-size:11px;color:#9ca3af;margin-bottom:10px;line-height:1.4">
-    Guarda el plano + todas las anotaciones como un archivo <b>.dproject</b> para enviar a otro móvil o conservar para otro día. Al cargarlo todo sigue siendo editable.
-  </div>
-  <div style="display:flex;gap:8px;flex-wrap:wrap;">
-    <button onclick="exportarEditable()" style="flex:1;padding:10px;border-radius:6px;background:#047857;color:#d1fae5;font-weight:600;border:none;cursor:pointer;font-size:12px;">📤 Exportar editable</button>
-    <button onclick="document.getElementById('fileInputEditable').click()" style="flex:1;padding:10px;border-radius:6px;background:#1e40af;color:#dbeafe;font-weight:600;border:none;cursor:pointer;font-size:12px;">📥 Cargar editable</button>
-    <input type="file" id="fileInputEditable" accept=".dproject,application/json" style="display:none">
-  </div>
-  <div style="font-size:11px;color:#9ca3af;margin-top:12px;margin-bottom:4px;">Copia de seguridad de <b>TODOS</b> los planos en un solo archivo (para guardar en el PC o pasar a otro dispositivo).</div>
-  <div style="display:flex;gap:8px;flex-wrap:wrap;">
-    <button onclick="exportarTodos()" style="flex:1;padding:10px;border-radius:6px;background:#7c3aed;color:#ede9fe;font-weight:600;border:none;cursor:pointer;font-size:12px;">💾 Copia de TODOS</button>
-    <button onclick="document.getElementById('fileInputBackup').click()" style="flex:1;padding:10px;border-radius:6px;background:#4338ca;color:#e0e7ff;font-weight:600;border:none;cursor:pointer;font-size:12px;">♻️ Restaurar copia</button>
-    <input type="file" id="fileInputBackup" accept=".dpbackup,application/json" style="display:none">
-  </div>
 </div>
 
 <div class="panel" id="projectPanel">
