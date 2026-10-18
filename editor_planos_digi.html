@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no, viewport-fit=cover">
-<title>Editor de Planos DIGI v9.7</title>
+<title>Editor de Planos DIGI v9.8</title>
 <meta name="theme-color" content="#1e2a3a">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -418,7 +418,7 @@
 <div class="app">
 
   <div class="topbar">
-    <span class="logo">DIGI<span class="ver">v9.7</span></span>
+    <span class="logo">DIGI<span class="ver">v9.8</span></span>
     <button id="btnHome" title="Ir al inicio" style="display:none">🏠</button>
     <span id="topbarTitle" style="font-size:12px;font-weight:600;color:#cbd5e1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:40vw;"></span>
     <span class="spacer"></span>
@@ -440,7 +440,7 @@
       <div class="logo-wrap">
         <div class="logo-main">DIGI</div>
         <div class="logo-sub">Editor de Planos</div>
-        <div class="logo-ver">v9.7</div>
+        <div class="logo-ver">v9.8</div>
       </div>
       <div class="cable-line"></div>
       <p>Carga una imagen o PDF del plano base para comenzar</p>
@@ -627,6 +627,14 @@
 </div>
 
 <div class="toast" id="toast" style="display:none"></div>
+
+<!-- Banner de progreso de sincronización -->
+<div id="syncBanner" style="display:none;position:fixed;top:54px;left:50%;transform:translateX(-50%);z-index:4000;background:rgba(10,14,20,0.96);border:1px solid #2a3140;border-radius:12px;padding:11px 16px;box-shadow:0 8px 24px rgba(0,0,0,0.55);min-width:230px;max-width:92vw;backdrop-filter:blur(6px);">
+  <div id="syncBannerTxt" style="font-size:12.5px;color:#e5e7eb;font-weight:700;"></div>
+  <div style="height:6px;border-radius:4px;background:#2a3140;margin-top:9px;overflow:hidden;">
+    <div id="syncBannerBar" style="height:100%;width:6%;border-radius:4px;background:#2563eb;transition:width .25s ease,background .25s ease;"></div>
+  </div>
+</div>
 
 <script>
 'use strict';
@@ -2946,12 +2954,6 @@ async function driveConectar() {
   }
 }
 
-// Reconexión silenciosa al abrir la app (si ya autorizó en este navegador)
-async function driveReconectarSilencioso() {
-  if (!driveClientId() || localStorage.getItem('digi_drive_connected') !== '1') return;
-  try { await _driveGetToken(false); setDriveStatus('conectado ✓', '#22c55e'); }
-  catch (e) { /* silencioso: si falla, el usuario pulsará Conectar */ }
-}
 function driveDesconectar() {
   _driveToken = null; _driveTokenExp = 0;
   localStorage.removeItem('digi_drive_connected');
@@ -2989,18 +2991,25 @@ function _thumbFromDataUrl(dataUrl) {
     img.src = dataUrl;
   });
 }
-// Sube o actualiza un JSON con nombre 'fname' dentro de la carpeta 'folderId'
-async function _driveUpsertJson(folderId, fname, blob) {
+// Sube o actualiza un JSON con nombre 'fname' dentro de la carpeta 'folderId'.
+// appProps (opcional) guarda metadatos ligeros (ej. la fecha) para poder
+// comparar versiones SIN descargar el archivo entero (sincronización rápida).
+async function _driveUpsertJson(folderId, fname, blob, appProps) {
   const token = await _driveGetToken(false);
   const q = `name='${fname.replace(/'/g,"\\'")}' and '${folderId}' in parents and trashed=false`;
   const sr = await _driveFetch('https://www.googleapis.com/drive/v3/files?q=' + encodeURIComponent(q) + '&fields=files(id)');
   const ex = (await sr.json()).files;
+  const meta = appProps ? { appProperties: appProps } : {};
+  const form = new FormData();
   if (ex && ex.length) {
-    await fetch('https://www.googleapis.com/upload/drive/v3/files/' + ex[0].id + '?uploadType=media',
-      { method: 'PATCH', headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' }, body: blob });
+    // actualizar contenido + metadatos en UNA sola llamada
+    form.append('metadata', new Blob([JSON.stringify(meta)], { type: 'application/json' }));
+    form.append('file', blob);
+    await fetch('https://www.googleapis.com/upload/drive/v3/files/' + ex[0].id + '?uploadType=multipart',
+      { method: 'PATCH', headers: { Authorization: 'Bearer ' + token }, body: form });
   } else {
-    const form = new FormData();
-    form.append('metadata', new Blob([JSON.stringify({ name: fname, parents: [folderId] })], { type: 'application/json' }));
+    meta.name = fname; meta.parents = [folderId];
+    form.append('metadata', new Blob([JSON.stringify(meta)], { type: 'application/json' }));
     form.append('file', blob);
     await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart',
       { method: 'POST', headers: { Authorization: 'Bearer ' + token }, body: form });
@@ -3023,8 +3032,8 @@ async function subirProyectoNube(entry) {
     imgDataUrl
   };
   const blob = new Blob([JSON.stringify(payload)], { type: 'application/json' });
-  // 1) Copia de trabajo (siempre la última) en _Proyectos
-  await _driveUpsertJson(folderId, entry.id + '.json', blob);
+  // 1) Copia de trabajo (siempre la última) en _Proyectos — con la fecha en metadatos
+  await _driveUpsertJson(folderId, entry.id + '.json', blob, { fecha: entry.fecha || '' });
   // 2) Copia fechada del día (histórico) — sobrescribe la de hoy
   try {
     const hoy = new Date().toISOString().slice(0, 10); // AAAA-MM-DD
@@ -3036,7 +3045,7 @@ async function subirProyectoNube(entry) {
 async function listarProyectosNube() {
   const folderId = await _driveProyFolder();
   const q = `'${folderId}' in parents and trashed=false and mimeType='application/json'`;
-  const r = await _driveFetch('https://www.googleapis.com/drive/v3/files?q=' + encodeURIComponent(q) + '&fields=files(id,name)&pageSize=1000');
+  const r = await _driveFetch('https://www.googleapis.com/drive/v3/files?q=' + encodeURIComponent(q) + '&fields=files(id,name,appProperties)&pageSize=1000');
   // Excluir archivos internos como _deleted.json (no son proyectos)
   return ((await r.json()).files || []).filter(f => !f.name.startsWith('_'));
 }
@@ -3104,20 +3113,45 @@ async function descargarProyectoNube(fileId) {
   });
   return data.id;
 }
+// Banner visible de progreso de sincronización
+let _syncBannerTimer = null;
+function _syncBanner(show, txt, estado, pct) {
+  const b = document.getElementById('syncBanner');
+  if (!b) return;
+  clearTimeout(_syncBannerTimer);
+  if (!show) { b.style.display = 'none'; return; }
+  b.style.display = 'block';
+  const colores = { curso: '#2563eb', ok: '#22c55e', error: '#ef4444' };
+  const t = document.getElementById('syncBannerTxt');
+  const bar = document.getElementById('syncBannerBar');
+  if (t) t.textContent = txt;
+  if (bar) { bar.style.background = colores[estado] || '#2563eb'; if (pct != null) bar.style.width = Math.max(4, Math.min(100, pct)) + '%'; }
+  // Al terminar (ok/error) se oculta solo tras unos segundos
+  if (estado === 'ok' || estado === 'error') _syncBannerTimer = setTimeout(() => { b.style.display = 'none'; }, 2600);
+}
+
+let _syncEnCurso = false;
 async function sincronizarConNube() {
   if (!driveClientId()) { toast('Configura Drive en Ajustes'); return; }
-  toast('🔄 Sincronizando...');
+  if (_syncEnCurso) return; // evita solapar dos sincronizaciones
+  _syncEnCurso = true;
+  _syncBanner(true, '🔄 Conectando con Drive…', 'curso', 6);
   try {
     await flushAutoGuardar(); // guarda YA el último dato antes de comparar con Drive
     await _driveGetToken(false).catch(() => _driveGetToken(true));
+    _syncBanner(true, '🔄 Comparando planos…', 'curso', 14);
     // Fusionar marcas de borrado local + nube
     const tombNube = await _bajarTombstonesNube();
     let tomb = Array.from(new Set([..._getTombstones(), ...tombNube]));
 
     let locales = await listarProyectos();
     const nubeFiles = await listarProyectosNube();
-    const nubeMap = {};
-    nubeFiles.forEach(f => { nubeMap[f.name.replace(/\.json$/, '')] = f.id; });
+    const nubeMap = {}, nubeFecha = {};
+    nubeFiles.forEach(f => {
+      const id = f.name.replace(/\.json$/, '');
+      nubeMap[id] = f.id;
+      nubeFecha[id] = (f.appProperties && f.appProperties.fecha) || null; // fecha sin descargar
+    });
 
     // RED DE SEGURIDAD: proyectos que existen aquí pero fueron borrados en otro dispositivo
     const borradosEnOtro = locales.filter(p => tomb.includes(p.id));
@@ -3134,31 +3168,44 @@ async function sincronizarConNube() {
 
     locales = await listarProyectos();
     const localMap = {}; locales.forEach(p => localMap[p.id] = p);
-    let subidos = 0, bajados = 0;
-    for (const p of locales) { if (!nubeMap[p.id]) { await subirProyectoNube(p); subidos++; } }
-    for (const id in nubeMap) {
-      if (tomb.includes(id)) { await _borrarJsonNube(id); continue; } // borrado: no bajar
-      if (!localMap[id]) { await descargarProyectoNube(nubeMap[id]); bajados++; }
-    }
+    const cloudOnly = Object.keys(nubeMap).filter(id => !localMap[id] && !tomb.includes(id));
+    const total = locales.length + cloudOnly.length || 1;
+    let hechos = 0, subidos = 0, bajados = 0;
+    const paso = () => { hechos++; _syncBanner(true, `🔄 Sincronizando…  ${hechos}/${total}  (↑${subidos} ↓${bajados})`, 'curso', 14 + (hechos / total) * 80); };
+
+    // Subir los que no están en la nube
+    for (const p of locales) { if (!nubeMap[p.id]) { await subirProyectoNube(p); subidos++; paso(); } }
+    // Bajar los que están solo en la nube
+    for (const id of cloudOnly) { await descargarProyectoNube(nubeMap[id]); bajados++; paso(); }
+    // Borrar en la nube los marcados como borrados
+    for (const id in nubeMap) { if (tomb.includes(id)) await _borrarJsonNube(id); }
+    // Comparar los que están en ambos — por FECHA de metadatos (sin descargar la imagen)
     for (const p of locales) {
       if (nubeMap[p.id] && !tomb.includes(p.id)) {
-        const r = await _driveFetch('https://www.googleapis.com/drive/v3/files/' + nubeMap[p.id] + '?alt=media');
-        const remote = await r.json();
-        if ((remote.fecha || '') > (p.fecha || '')) { await descargarProyectoNube(nubeMap[p.id]); bajados++; }
-        else if ((p.fecha || '') > (remote.fecha || '')) { await subirProyectoNube(p); subidos++; }
+        let rf = nubeFecha[p.id];
+        if (rf == null) { // archivo antiguo sin metadatos: descargar solo para leer la fecha
+          const r = await _driveFetch('https://www.googleapis.com/drive/v3/files/' + nubeMap[p.id] + '?alt=media');
+          rf = (await r.json()).fecha || '';
+        }
+        if ((rf || '') > (p.fecha || '')) { await descargarProyectoNube(nubeMap[p.id]); bajados++; }
+        else if ((p.fecha || '') > (rf || '')) { await subirProyectoNube(p); subidos++; }
+        paso();
       }
     }
     await _subirTombstonesNube(tomb).catch(()=>{});
     _filtroProyectos = 'todos';
     refrescarPanelProyectos();
     const totalNube = Object.keys(nubeMap).length;
-    if (subidos === 0 && bajados === 0 && totalNube === 0)
-      toast('Sincronizado · no hay proyectos en Drive todavía');
-    else
-      toast(`✓ Sincronizado · ${subidos} subidos · ${bajados} bajados`);
+    if (subidos === 0 && bajados === 0 && totalNube === 0) {
+      _syncBanner(true, '✓ Sin proyectos en Drive todavía', 'ok', 100);
+    } else {
+      _syncBanner(true, `✓ Sincronizado · ↑${subidos} subidos · ↓${bajados} bajados`, 'ok', 100);
+    }
   } catch (e) {
-    toast('Error sync: ' + e.message);
+    _syncBanner(true, '⚠️ Error al sincronizar: ' + e.message, 'error', 100);
     console.warn('sincronizarConNube:', e);
+  } finally {
+    _syncEnCurso = false;
   }
 }
 window.sincronizarConNube = sincronizarConNube;
@@ -3243,11 +3290,22 @@ if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
     });
   }).catch(() => {});
 }
-// Drive: cargar Client ID y preferencias guardadas
+// Drive: al abrir la app, si ya conectaste antes, reconecta y sincroniza SOLO.
 (function initDrive(){
-  if (localStorage.getItem('digi_drive_connected') === '1') setDriveStatus('configurado (toca 🔑 Conectar Drive)', '#9ca3af');
-  // No auto-conectamos al abrir (evita pedir la cuenta cada vez en el móvil).
-  // La sesión se obtiene de forma silenciosa cuando pulsas Sincronizar.
+  if (!driveClientId() || localStorage.getItem('digi_drive_connected') !== '1') return;
+  setDriveStatus('conectando…', '#fbbf24');
+  // Pequeño retraso para que la app termine de cargar antes de pedir el token
+  setTimeout(async () => {
+    try {
+      await _driveGetToken(false);              // reconexión silenciosa (sin diálogo)
+      setDriveStatus('conectado ✓', '#22c55e');
+      await sincronizarConNube();               // sincroniza automáticamente
+    } catch (e) {
+      // Si el navegador no deja reconectar en silencio, el usuario pulsa 🔑 Conectar
+      setDriveStatus('configurado (toca 🔑 Conectar Drive)', '#9ca3af');
+      console.warn('initDrive auto:', e);
+    }
+  }, 800);
 })();
 // Campo "Nombre del archivo (alias)" en el panel de proyecto
 (function initAlias(){
