@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no, viewport-fit=cover">
-<title>Editor de Planos DIGI v9.8</title>
+<title>Editor de Planos DIGI v9.9</title>
 <meta name="theme-color" content="#1e2a3a">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -418,7 +418,7 @@
 <div class="app">
 
   <div class="topbar">
-    <span class="logo">DIGI<span class="ver">v9.8</span></span>
+    <span class="logo">DIGI<span class="ver">v9.9</span></span>
     <button id="btnHome" title="Ir al inicio" style="display:none">🏠</button>
     <span id="topbarTitle" style="font-size:12px;font-weight:600;color:#cbd5e1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:40vw;"></span>
     <span class="spacer"></span>
@@ -440,7 +440,7 @@
       <div class="logo-wrap">
         <div class="logo-main">DIGI</div>
         <div class="logo-sub">Editor de Planos</div>
-        <div class="logo-ver">v9.8</div>
+        <div class="logo-ver">v9.9</div>
       </div>
       <div class="cable-line"></div>
       <p>Carga una imagen o PDF del plano base para comenzar</p>
@@ -2892,22 +2892,39 @@ function _cargarGIS() {
   });
 }
 
+// Petición de token en curso (resolver/rechazar). El cliente de Google tiene un
+// único callback, así que debe apuntar SIEMPRE a la petición actual, no a la 1ª.
+let _drivePending = null;
 // Obtiene un token válido (re-solicita si caducó). interactive=true muestra el diálogo.
 function _driveGetToken(interactive) {
   return new Promise(async (resolve, reject) => {
     if (_driveToken && Date.now() < _driveTokenExp - 60000) return resolve(_driveToken);
     const cid = driveClientId();
     if (!cid) return reject(new Error('Falta el Client ID en Ajustes'));
-    await _cargarGIS();
+    try { await _cargarGIS(); } catch (e) { return reject(e); }
+
+    let acabado = false;
+    const terminar = (fn, arg) => { if (acabado) return; acabado = true; _drivePending = null; clearTimeout(to); fn(arg); };
+    // Seguridad: si una reconexión silenciosa no responde, no se queda colgada
+    const to = setTimeout(() => terminar(reject, new Error(interactive ? 'timeout' : 'silent_timeout')), interactive ? 120000 : 9000);
+    _drivePending = {
+      ok: (tok) => terminar(resolve, tok),
+      err: (e) => terminar(reject, e),
+    };
+
     if (!_driveTokenClient) {
       _driveTokenClient = google.accounts.oauth2.initTokenClient({
         client_id: cid, scope: DRIVE_SCOPE,
         callback: (resp) => {
-          if (resp.error) { reject(new Error(resp.error)); return; }
+          const p = _drivePending; if (!p) return;
+          if (resp.error) { p.err(new Error(resp.error)); return; }
           _driveToken = resp.access_token;
           _driveTokenExp = Date.now() + (resp.expires_in || 3600) * 1000;
           localStorage.setItem('digi_drive_connected', '1');
-          resolve(_driveToken);
+          p.ok(_driveToken);
+        },
+        error_callback: (err) => {
+          const p = _drivePending; if (p) p.err(new Error((err && err.type) || 'auth_error'));
         }
       });
     }
@@ -2943,11 +2960,11 @@ async function driveConectar() {
   if (!cid) { toast('Pega primero el Client ID'); return; }
   try {
     setDriveStatus('conectando...', '#fbbf24');
-    // Si ya autorizó antes, intenta silencioso; si no, pide consentimiento
-    const yaAutorizo = localStorage.getItem('digi_drive_connected') === '1';
-    await _driveGetToken(!yaAutorizo);
+    // Conectar SIEMPRE con diálogo (es un toque explícito del usuario): así es fiable
+    await _driveGetToken(true);
     setDriveStatus('conectado ✓', '#22c55e');
     toast('Drive conectado');
+    sincronizarConNube(); // y sincroniza solo, para no tener que pulsar también 🔄
   } catch (e) {
     setDriveStatus('error: ' + e.message, '#ef4444');
     toast('Error Drive: ' + e.message);
