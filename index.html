@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no, viewport-fit=cover">
-<title>Editor de Planos DIGI v9.5</title>
+<title>Editor de Planos DIGI v9.6</title>
 <meta name="theme-color" content="#1e2a3a">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -418,7 +418,7 @@
 <div class="app">
 
   <div class="topbar">
-    <span class="logo">DIGI<span class="ver">v9.5</span></span>
+    <span class="logo">DIGI<span class="ver">v9.6</span></span>
     <button id="btnHome" title="Ir al inicio" style="display:none">🏠</button>
     <span id="topbarTitle" style="font-size:12px;font-weight:600;color:#cbd5e1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:40vw;"></span>
     <span class="spacer"></span>
@@ -440,7 +440,7 @@
       <div class="logo-wrap">
         <div class="logo-main">DIGI</div>
         <div class="logo-sub">Editor de Planos</div>
-        <div class="logo-ver">v9.5</div>
+        <div class="logo-ver">v9.6</div>
       </div>
       <div class="cable-line"></div>
       <p>Carga una imagen o PDF del plano base para comenzar</p>
@@ -799,8 +799,8 @@ function buildToolbar() {
       b.onclick = () => abrirMenuBarra(b, [
         { html: '❌ X anular', onClick: () => selectTool('xmark', {}) },
         { html: '⬜ Tapar texto', onClick: () => selectTool('cover', {}) },
-        { html: '✱ Asterisco', onClick: () => selectTool('nota', {}) },
-        { html: '📋 Insertar nota', onClick: () => insertarListaNotas() },
+        { html: '<b style="color:#f87171">✱</b> Poner asterisco', accent: '#f87171', onClick: () => selectTool('nota', {}) },
+        { html: '<b style="color:#f87171">✱</b> Insertar nota de asteriscos', accent: '#f87171', onClick: () => insertarListaNotas() },
       ]);
     } else if (c.type === 'pan') {
       b.innerHTML = `🖐 Mover`;
@@ -830,7 +830,10 @@ function abrirMenuBarra(btn, items) {
   items.forEach(it => {
     const b = document.createElement('button');
     b.innerHTML = it.html;
-    b.style.cssText = 'display:flex;align-items:center;gap:8px;padding:11px 13px;border-radius:8px;border:1px solid #2a3140;background:#1f2530;color:#e5e7eb;font-size:13px;font-weight:600;cursor:pointer;text-align:left;white-space:nowrap;';
+    // it.accent (color) marca varios items como asociados entre sí (borde + fondo tenue)
+    const borde = it.accent ? it.accent : '#2a3140';
+    const fondo = it.accent ? 'rgba(248,113,113,0.12)' : '#1f2530';
+    b.style.cssText = `display:flex;align-items:center;gap:8px;padding:11px 13px;border-radius:8px;border:1px solid ${borde};border-left:4px solid ${borde};background:${it.accent?fondo:'#1f2530'};color:#e5e7eb;font-size:13px;font-weight:600;cursor:pointer;text-align:left;white-space:nowrap;`;
     b.onclick = () => { cerrarMenuBarra(); it.onClick(); };
     menu.appendChild(b);
   });
