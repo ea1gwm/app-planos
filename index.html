@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no, viewport-fit=cover">
-<title>Editor de Planos DIGI v9.3</title>
+<title>Editor de Planos DIGI v9.4</title>
 <meta name="theme-color" content="#1e2a3a">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -418,7 +418,7 @@
 <div class="app">
 
   <div class="topbar">
-    <span class="logo">DIGI<span class="ver">v9.3</span></span>
+    <span class="logo">DIGI<span class="ver">v9.4</span></span>
     <button id="btnHome" title="Ir al inicio" style="display:none">🏠</button>
     <span id="topbarTitle" style="font-size:12px;font-weight:600;color:#cbd5e1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:40vw;"></span>
     <span class="spacer"></span>
@@ -440,7 +440,7 @@
       <div class="logo-wrap">
         <div class="logo-main">DIGI</div>
         <div class="logo-sub">Editor de Planos</div>
-        <div class="logo-ver">v9.3</div>
+        <div class="logo-ver">v9.4</div>
       </div>
       <div class="cable-line"></div>
       <p>Carga una imagen o PDF del plano base para comenzar</p>
@@ -471,24 +471,6 @@
 </div>
 
 <!-- FULL TOOLBAR DRAWER -->
-<div class="drawer" id="drawerFull">
-  <div class="drawer-header">
-    <h3>Herramientas</h3>
-    <button class="close" onclick="closeDrawer()">✕</button>
-  </div>
-  <div class="drawer-section">
-    <div class="label">Elementos</div>
-    <div class="tool-row" id="drawerElems"></div>
-  </div>
-  <div class="drawer-section">
-    <div class="label">Anotaciones</div>
-    <div class="tool-row" id="drawerAnnots"></div>
-    <div style="font-size:10px;color:#4b5563;margin-top:4px;line-height:1.4">
-      ✱ Asterisco: coloca marcas en el plano y toca cada una para escribir su nota. Luego pulsa <b>📋 Insertar nota</b> para generar el recuadro con todas las notas numeradas.
-    </div>
-  </div>
-</div>
-
 <!-- POPUP -->
 <div class="elem-popup" id="elemPopup">
   <div id="popupDragBar" style="display:flex;align-items:center;justify-content:space-between;margin:-10px -10px 8px -10px;padding:7px 10px;background:#0f1115;border-bottom:1px solid #2a2f3a;border-radius:6px 6px 0 0;cursor:move;touch-action:none;user-select:none;">
@@ -670,7 +652,6 @@ const TRAMO_LETRAS = [
   { letra: 'C', desc: 'Subconducto'           },
   { letra: 'X', desc: 'Subc. otra compañía'   },
   { letra: 'D', desc: 'Salida lateral'        },
-  { letra: '', desc: 'Aéreo'                  },
 ];
 
 const ELEM_TYPES = [
@@ -691,10 +672,6 @@ const COMPACT_TOOLS = [
   { type: 'cable', cable: '96KP' },
   { type: 'cable-more' },
   { type: 'divider' },
-  { type: 'text' },
-  { type: 'hl', color: '#fef08a', icon: '🟨' },
-  { type: 'hl', color: '#fb923c', icon: '🟧' },
-  { type: 'divider' },
   { type: 'tramo', letra: 'A' },
   { type: 'tramo', letra: 'B' },
   { type: 'tramo', letra: 'F' },
@@ -703,7 +680,8 @@ const COMPACT_TOOLS = [
   { type: 'valona', meters: 20, icon: '🟠20' },
   { type: 'valona', meters: 10, icon: '🟠10' },
   { type: 'divider' },
-  { type: 'more' },
+  { type: 'elem-more' },
+  { type: 'anot-more' },
 ];
 
 // ============================================================
@@ -789,29 +767,40 @@ function buildToolbar() {
         })));
       };
     } else if (c.type === 'tramo-more') {
-      // Desplegable con el resto de letras de tramo (C, X, D, ?, Aéreo, u otra)
+      // Desplegable con el resto de letras de tramo (C, X, D)
       b.id = 'btnTramoMore';
       b.title = 'Más letras de tramo';
       b.innerHTML = `<span class="icon">⋯</span>`;
       b.onclick = () => {
-        const items = [];
-        ['C', 'X', 'D'].forEach(L => {
+        const items = ['C', 'X', 'D'].map(L => {
           const t = TRAMO_LETRAS.find(x => x.letra === L);
-          items.push({ html: `<b>${L}</b> · ${t ? t.desc : ''}`, onClick: () => selectTool('tramo', { letra: L }) });
+          return { html: `<b>${L}</b> · ${t ? t.desc : ''}`, onClick: () => selectTool('tramo', { letra: L }) };
         });
-        items.push({ html: `<b>?</b> · sin determinar`, onClick: () => selectTool('tramo', { letra: '?' }) });
-        items.push({ html: `— · Aéreo`, onClick: () => selectTool('tramo', { letra: '' }) });
-        items.push({ html: `✏️ Otra letra…`, onClick: () => {
-          const v = prompt('Letra del tramo:', '');
-          if (v !== null) { selectTool('tramo', { letra: v.trim().toUpperCase() }); toast('Tramo letra "' + (v.trim().toUpperCase() || '—') + '"'); }
-        } });
         abrirMenuBarra(b, items);
       };
-    } else if (c.type === 'more') {
-      b.innerHTML = `⋯ Más`;
-      b.style.background = '#2563eb';
-      b.style.color = 'white';
-      b.onclick = openDrawer;
+    } else if (c.type === 'elem-more') {
+      // Desplegable de elementos (cámara CR, arqueta ARQ, poste, CTO…)
+      b.id = 'btnElemMore';
+      b.title = 'Elementos';
+      b.innerHTML = `<span class="icon">🔧</span>Elem ▾`;
+      b.onclick = () => abrirMenuBarra(b, ELEM_TYPES.map(e => ({
+        html: `<b>${e.label}</b>`,
+        onClick: () => selectTool('elem', { elemType: e.id })
+      })));
+    } else if (c.type === 'anot-more') {
+      // Desplegable de anotaciones (texto, resaltar, anular, tapar, asterisco, nota)
+      b.id = 'btnAnotMore';
+      b.title = 'Anotaciones';
+      b.innerHTML = `<span class="icon">✏️</span>Anot ▾`;
+      b.onclick = () => abrirMenuBarra(b, [
+        { html: '📝 Texto', onClick: () => selectTool('text', {}) },
+        { html: '🟨 Resaltar amarillo', onClick: () => selectTool('hl-yellow', { color: '#fef08a' }) },
+        { html: '🟧 Resaltar naranja', onClick: () => selectTool('hl-orange', { color: '#fb923c' }) },
+        { html: '❌ X anular', onClick: () => selectTool('xmark', {}) },
+        { html: '⬜ Tapar texto', onClick: () => selectTool('cover', {}) },
+        { html: '✱ Asterisco', onClick: () => selectTool('nota', {}) },
+        { html: '📋 Insertar nota', onClick: () => insertarListaNotas() },
+      ]);
     } else if (c.type === 'pan') {
       b.innerHTML = `🖐 Mover`;
       b.title = 'Sin herramienta: tocar el plano solo selecciona/mueve, no crea elementos';
@@ -821,51 +810,6 @@ function buildToolbar() {
     tc.appendChild(b);
   });
 
-  // FULL DRAWER — cables y tramos ya no van aquí (están en la barra con su desplegable)
-  const drawerElems = document.getElementById('drawerElems');
-  ELEM_TYPES.forEach(e => {
-    const b = document.createElement('button');
-    b.className = 'tool';
-    b.innerHTML = e.label;
-    b.onclick = () => { selectTool('elem', { elemType: e.id }); closeDrawer(); };
-    b.dataset.tool = 'elem-' + e.id;
-    drawerElems.appendChild(b);
-  });
-
-  const drawerAnnots = document.getElementById('drawerAnnots');
-  // (Las valonas no se repiten aquí: ya están en la barra de abajo)
-  [
-    { id: 'hl-yellow', label: '🟨 Amarillo', color: '#fef08a' },
-    { id: 'hl-orange', label: '🟧 Naranja', color: '#fb923c' },
-    { id: 'text', label: '📝 Texto' },
-    { id: 'xmark', label: '❌ X anular' },
-    { id: 'cover', label: '⬜ Tapar texto' },
-  ].forEach(a => {
-    const b = document.createElement('button');
-    b.className = 'tool';
-    b.innerHTML = a.label;
-    b.onclick = () => { selectTool(a.id, { meters: a.meters, color: a.color }); closeDrawer(); };
-    b.dataset.tool = a.id;
-    drawerAnnots.appendChild(b);
-  });
-  // Botón dividido del asterisco: izquierda = colocar ✱ · derecha = insertar la lista de notas en el plano
-  const notaSplit = document.createElement('div');
-  notaSplit.style.cssText = 'display:flex;border-radius:8px;overflow:hidden;border:1px solid #2a3140;flex:1 1 100%;';
-  const mitadAster = document.createElement('button');
-  mitadAster.className = 'tool';
-  mitadAster.dataset.tool = 'nota';
-  mitadAster.innerHTML = '✱ Asterisco';
-  mitadAster.style.cssText = 'flex:1;border-radius:0;border:none;';
-  mitadAster.onclick = () => { selectTool('nota', {}); closeDrawer(); };
-  const mitadLista = document.createElement('button');
-  mitadLista.className = 'tool';
-  mitadLista.innerHTML = '📋 Insertar nota';
-  mitadLista.title = 'Genera en el plano el recuadro con todas las notas de los asteriscos';
-  mitadLista.style.cssText = 'flex:1;border-radius:0;border:none;border-left:1px solid #2a3140;background:#7f1d1d;color:#fecaca;';
-  mitadLista.onclick = () => { insertarListaNotas(); closeDrawer(); };
-  notaSplit.appendChild(mitadAster);
-  notaSplit.appendChild(mitadLista);
-  drawerAnnots.appendChild(notaSplit);
 }
 
 // ── Menú flotante para los desplegables de la barra (cables extra, letras extra) ──
@@ -901,8 +845,7 @@ function abrirMenuBarra(btn, items) {
   setTimeout(() => document.addEventListener('pointerdown', _menuBarraFuera, true), 0);
 }
 
-function openDrawer() { document.getElementById('drawerFull').classList.add('open'); }
-function closeDrawer() { document.getElementById('drawerFull').classList.remove('open'); }
+function closeDrawer() { const d = document.getElementById('drawerFull'); if (d) d.classList.remove('open'); cerrarMenuBarra(); }
 window.closeDrawer = closeDrawer;
 
 function selectTool(tool, data) {
@@ -923,6 +866,10 @@ function updateToolUI() {
   if (cm) cm.classList.toggle('active', state.tool === 'cable' && !BARRA_CABLES.includes(state.toolData.cableType));
   const tm = document.getElementById('btnTramoMore');
   if (tm) tm.classList.toggle('active', state.tool === 'tramo' && !BARRA_TRAMOS.includes(state.toolData.letra ?? ''));
+  const em = document.getElementById('btnElemMore');
+  if (em) em.classList.toggle('active', state.tool === 'elem');
+  const am = document.getElementById('btnAnotMore');
+  if (am) am.classList.toggle('active', ['text', 'hl-yellow', 'hl-orange', 'xmark', 'cover', 'nota'].includes(state.tool));
   if (!state.tool) {
     // Sin herramienta: marcar el botón "Mover" como activo
     document.querySelectorAll('.tool[data-tool="__pan__"]').forEach(b => b.classList.add('active'));
