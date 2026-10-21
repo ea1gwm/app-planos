@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no, viewport-fit=cover">
-<title>Editor de Planos DIGI v9.11</title>
+<title>Editor de Planos DIGI v9.12</title>
 <meta name="theme-color" content="#1e2a3a">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -418,7 +418,7 @@
 <div class="app">
 
   <div class="topbar">
-    <span class="logo">DIGI<span class="ver">v9.11</span></span>
+    <span class="logo">DIGI<span class="ver">v9.12</span></span>
     <button id="btnHome" title="Ir al inicio" style="display:none">🏠</button>
     <span id="topbarTitle" style="font-size:12px;font-weight:600;color:#cbd5e1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:40vw;"></span>
     <span class="spacer"></span>
@@ -440,7 +440,7 @@
       <div class="logo-wrap">
         <div class="logo-main">DIGI</div>
         <div class="logo-sub">Editor de Planos</div>
-        <div class="logo-ver">v9.11</div>
+        <div class="logo-ver">v9.12</div>
       </div>
       <div class="cable-line"></div>
       <p>Carga una imagen o PDF del plano base para comenzar</p>
@@ -3183,11 +3183,12 @@ async function sincronizarConNube() {
       const id = f.name.replace(/\.json$/, '');
       (porId[id] = porId[id] || []).push(f);
     });
-    const nubeMap = {};
+    const nubeMap = {}, nubeMod = {};
     const dupsABorrar = [];
     for (const id in porId) {
       const arr = porId[id].sort((a, b) => (b.modifiedTime || '').localeCompare(a.modifiedTime || ''));
       nubeMap[id] = arr[0].id; // el más reciente manda
+      nubeMod[id] = arr[0].modifiedTime || ''; // cuándo cambió en Drive (para saltar los que no cambiaron)
       for (let i = 1; i < arr.length; i++) dupsABorrar.push(arr[i].id);
     }
     for (const fid of dupsABorrar) await _borrarArchivoDrive(fid);
@@ -3213,26 +3214,40 @@ async function sincronizarConNube() {
     let hechos = 0, subidos = 0, bajados = 0;
     const paso = () => { hechos++; _syncBanner(true, `🔄 Sincronizando…  ${hechos}/${total}  (↑${subidos} ↓${bajados})`, 'curso', 14 + (hechos / total) * 80); };
 
+    // Memoria de sincronización por plano: { id: { cm: modifiedTime de Drive, lf: fecha local } }
+    // Permite saltar en las siguientes sincronizaciones los planos que no han cambiado
+    // ni aquí ni en Drive (el grueso), descargando solo los que de verdad cambiaron.
+    let sy = {}; try { sy = JSON.parse(localStorage.getItem('digi_sync') || '{}'); } catch {}
+
     // Procesa una lista en lotes de 'n' en paralelo (más rápido que uno a uno)
     const enLotes = async (items, n, fn) => {
       for (let i = 0; i < items.length; i += n) await Promise.all(items.slice(i, i + n).map(fn));
     };
     // Subir los que no están en la nube
-    await enLotes(locales.filter(p => !nubeMap[p.id]), 4, async (p) => { await subirProyectoNube(p); subidos++; paso(); });
+    await enLotes(locales.filter(p => !nubeMap[p.id]), 4, async (p) => { await subirProyectoNube(p); subidos++; sy[p.id] = { cm: '', lf: p.fecha || '' }; paso(); });
     // Bajar los que están solo en la nube
-    await enLotes(cloudOnly, 4, async (id) => { await descargarProyectoNube(nubeMap[id]); bajados++; paso(); });
+    await enLotes(cloudOnly, 4, async (id) => { const d = await descargarProyectoNube(nubeMap[id]); if (d) { bajados++; const e = await _getProject(id); sy[id] = { cm: nubeMod[id], lf: (e && e.fecha) || '' }; } paso(); });
     // Borrar en la nube los marcados como borrados
-    for (const id in nubeMap) { if (tomb.includes(id)) await _borrarJsonNube(id); }
-    // Comparar los que están en ambos: se lee la fecha REAL del archivo (fiable) y
-    // gana la versión más nueva. Se hace en paralelo por lotes para que sea rápido.
+    for (const id in nubeMap) { if (tomb.includes(id)) { await _borrarJsonNube(id); delete sy[id]; } }
+    // Comparar los que están en ambos — pero SALTANDO los que no cambiaron ni aquí ni en
+    // Drive desde la última vez (comparando modifiedTime y la fecha local). Solo se descarga
+    // para comparar el que haya cambiado; gana la versión con fecha más nueva (fiable).
     const ambos = locales.filter(p => nubeMap[p.id] && !tomb.includes(p.id));
     await enLotes(ambos, 4, async (p) => {
+      const prev = sy[p.id] || { cm: null, lf: null };
+      const cloudCambio = nubeMod[p.id] !== prev.cm;
+      const localCambio = (p.fecha || '') !== (prev.lf || '');
+      if (!cloudCambio && !localCambio) { paso(); return; } // sin cambios → se salta (rápido)
       const r = await _driveFetch('https://www.googleapis.com/drive/v3/files/' + nubeMap[p.id] + '?alt=media');
       const rf = (await r.json()).fecha || '';
-      if (rf > (p.fecha || '')) { await descargarProyectoNube(nubeMap[p.id]); bajados++; }
-      else if ((p.fecha || '') > rf) { await subirProyectoNube(p); subidos++; }
+      if (rf > (p.fecha || '')) { await descargarProyectoNube(nubeMap[p.id]); bajados++; sy[p.id] = { cm: nubeMod[p.id], lf: rf }; }
+      else if ((p.fecha || '') > rf) { await subirProyectoNube(p); subidos++; sy[p.id] = { cm: '', lf: p.fecha || '' }; }
+      else { sy[p.id] = { cm: nubeMod[p.id], lf: p.fecha || '' }; }
       paso();
     });
+    // Limpiar de la memoria los planos que ya no existen en ningún sitio y guardar
+    for (const id in sy) { if (!nubeMap[id] && !localMap[id]) delete sy[id]; }
+    try { localStorage.setItem('digi_sync', JSON.stringify(sy)); } catch {}
     await _subirTombstonesNube(tomb).catch(()=>{});
     _filtroProyectos = 'todos';
     refrescarPanelProyectos();
