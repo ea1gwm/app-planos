@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no, viewport-fit=cover">
-<title>Editor de Planos DIGI v9.10</title>
+<title>Editor de Planos DIGI v9.11</title>
 <meta name="theme-color" content="#1e2a3a">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -418,7 +418,7 @@
 <div class="app">
 
   <div class="topbar">
-    <span class="logo">DIGI<span class="ver">v9.10</span></span>
+    <span class="logo">DIGI<span class="ver">v9.11</span></span>
     <button id="btnHome" title="Ir al inicio" style="display:none">🏠</button>
     <span id="topbarTitle" style="font-size:12px;font-weight:600;color:#cbd5e1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:40vw;"></span>
     <span class="spacer"></span>
@@ -440,7 +440,7 @@
       <div class="logo-wrap">
         <div class="logo-main">DIGI</div>
         <div class="logo-sub">Editor de Planos</div>
-        <div class="logo-ver">v9.10</div>
+        <div class="logo-ver">v9.11</div>
       </div>
       <div class="cable-line"></div>
       <p>Carga una imagen o PDF del plano base para comenzar</p>
@@ -3018,6 +3018,13 @@ function _thumbFromDataUrl(dataUrl) {
     img.src = dataUrl;
   });
 }
+// Borra un archivo de Drive por su id (sin buscar por nombre)
+async function _borrarArchivoDrive(fileId) {
+  try {
+    const token = await _driveGetToken(false);
+    await fetch('https://www.googleapis.com/drive/v3/files/' + fileId, { method: 'DELETE', headers: { Authorization: 'Bearer ' + token } });
+  } catch (e) { console.warn('_borrarArchivoDrive:', e); }
+}
 // Sube o actualiza un JSON con nombre 'fname' dentro de la carpeta 'folderId'
 async function _driveUpsertJson(folderId, fname, blob) {
   const token = await _driveGetToken(false);
@@ -3025,6 +3032,8 @@ async function _driveUpsertJson(folderId, fname, blob) {
   const sr = await _driveFetch('https://www.googleapis.com/drive/v3/files?q=' + encodeURIComponent(q) + '&fields=files(id)');
   const ex = (await sr.json()).files;
   if (ex && ex.length) {
+    // Si hubiera duplicados con el mismo nombre, borrar los sobrantes (deja uno)
+    for (let i = 1; i < ex.length; i++) await _borrarArchivoDrive(ex[i].id);
     // actualizar el contenido del archivo existente (método simple y fiable)
     await fetch('https://www.googleapis.com/upload/drive/v3/files/' + ex[0].id + '?uploadType=media',
       { method: 'PATCH', headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' }, body: blob });
@@ -3066,7 +3075,7 @@ async function subirProyectoNube(entry) {
 async function listarProyectosNube() {
   const folderId = await _driveProyFolder();
   const q = `'${folderId}' in parents and trashed=false and mimeType='application/json'`;
-  const r = await _driveFetch('https://www.googleapis.com/drive/v3/files?q=' + encodeURIComponent(q) + '&fields=files(id,name)&pageSize=1000');
+  const r = await _driveFetch('https://www.googleapis.com/drive/v3/files?q=' + encodeURIComponent(q) + '&fields=files(id,name,modifiedTime)&pageSize=1000');
   // Excluir archivos internos como _deleted.json (no son proyectos)
   return ((await r.json()).files || []).filter(f => !f.name.startsWith('_'));
 }
@@ -3167,8 +3176,22 @@ async function sincronizarConNube() {
 
     let locales = await listarProyectos();
     const nubeFiles = await listarProyectosNube();
+    // Agrupar por id de plano. Si hay DUPLICADOS (mismo nombre en Drive), quedarse
+    // con el más reciente y borrar los viejos (los duplicados rompían la comparación).
+    const porId = {};
+    nubeFiles.forEach(f => {
+      const id = f.name.replace(/\.json$/, '');
+      (porId[id] = porId[id] || []).push(f);
+    });
     const nubeMap = {};
-    nubeFiles.forEach(f => { nubeMap[f.name.replace(/\.json$/, '')] = f.id; });
+    const dupsABorrar = [];
+    for (const id in porId) {
+      const arr = porId[id].sort((a, b) => (b.modifiedTime || '').localeCompare(a.modifiedTime || ''));
+      nubeMap[id] = arr[0].id; // el más reciente manda
+      for (let i = 1; i < arr.length; i++) dupsABorrar.push(arr[i].id);
+    }
+    for (const fid of dupsABorrar) await _borrarArchivoDrive(fid);
+    if (dupsABorrar.length) console.warn('Sync: borrados ' + dupsABorrar.length + ' duplicado(s) en Drive');
 
     // RED DE SEGURIDAD: proyectos que existen aquí pero fueron borrados en otro dispositivo
     const borradosEnOtro = locales.filter(p => tomb.includes(p.id));
