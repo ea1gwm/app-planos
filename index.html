@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no, viewport-fit=cover">
-<title>Editor de Planos DIGI v9.9</title>
+<title>Editor de Planos DIGI v9.10</title>
 <meta name="theme-color" content="#1e2a3a">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -418,7 +418,7 @@
 <div class="app">
 
   <div class="topbar">
-    <span class="logo">DIGI<span class="ver">v9.9</span></span>
+    <span class="logo">DIGI<span class="ver">v9.10</span></span>
     <button id="btnHome" title="Ir al inicio" style="display:none">🏠</button>
     <span id="topbarTitle" style="font-size:12px;font-weight:600;color:#cbd5e1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:40vw;"></span>
     <span class="spacer"></span>
@@ -440,7 +440,7 @@
       <div class="logo-wrap">
         <div class="logo-main">DIGI</div>
         <div class="logo-sub">Editor de Planos</div>
-        <div class="logo-ver">v9.9</div>
+        <div class="logo-ver">v9.10</div>
       </div>
       <div class="cable-line"></div>
       <p>Carga una imagen o PDF del plano base para comenzar</p>
@@ -815,7 +815,7 @@ function buildToolbar() {
       b.innerHTML = `🖐 Mover`;
       b.title = 'Sin herramienta: tocar el plano solo selecciona/mueve, no crea elementos';
       b.dataset.tool = '__pan__';
-      b.onclick = () => { state.tool = null; state.toolData = {}; if (state.pendingPath) finishPath(); updateToolUI(); toast('Modo mover'); };
+      b.onclick = () => { if (popupElement) closePopup(); state.tool = null; state.toolData = {}; if (state.pendingPath) finishPath(); updateToolUI(); toast('Modo mover'); };
     }
     tc.appendChild(b);
   });
@@ -862,6 +862,7 @@ function closeDrawer() { const d = document.getElementById('drawerFull'); if (d)
 window.closeDrawer = closeDrawer;
 
 function selectTool(tool, data) {
+  if (popupElement) closePopup(); // confirma el texto/medida abierto antes de cambiar de herramienta
   if (state.tool === tool && JSON.stringify(state.toolData) === JSON.stringify(data)) {
     state.tool = null; state.toolData = {};
     finishPath();
@@ -1309,6 +1310,7 @@ function onPointerDown(evt) {
   if (!state.bgLoaded) return;
   if (evt.target.closest('.topbar, .toolbar, .panel, .drawer, .elem-popup, .stack-picker, .pan-hint, .active-cable-bar')) return;
 
+  if (popupElement) closePopup(); // confirma lo escrito en el popup antes de tocar el plano
   closeStackPicker();
   const coords = getEventCoords(evt);
   const sp = getStagePoint(coords.x, coords.y);
@@ -1837,35 +1839,43 @@ function openElemPopup(el, evt) {
   redraw();
 }
 
-function closePopup() { document.getElementById('elemPopup').classList.remove('open'); popupElement = null; }
+// Aplica al elemento lo escrito en el popup (texto, metros, letra…). Solo guarda si
+// hubo cambio real. Se llama al pulsar OK y también al cerrar/cambiar de herramienta,
+// para que la última anotación NUNCA se pierda por no haber pulsado OK.
+function aplicarCambiosPopup() {
+  if (!popupElement) return;
+  const el = popupElement;
+  const val = document.getElementById('popupLabel').value;
+  const m = +document.getElementById('popupMeters').value || 0;
+  const fs = +document.getElementById('popupSize').value || 14;
+  const bg = document.getElementById('popupBg').checked;
+  const bold = document.getElementById('popupBold').checked;
+  const cableId = document.getElementById('popupCable').value || null;
+  const nuevo = {};
+  if (el.type === 'elem') { nuevo.label = val; nuevo.cableId = cableId; }
+  else if (el.type === 'tramo') { nuevo.letra = val.toUpperCase(); nuevo.meters = m; nuevo.fontSize = fs; nuevo.cableId = cableId; }
+  else if (el.type === 'valona') { nuevo.meters = m; nuevo.cableId = cableId; }
+  else if (el.type === 'text') { nuevo.text = val.replace(/\|/g, '\n'); nuevo.background = bg; nuevo.fontSize = fs; nuevo.bold = bold; }
+  else if (el.type === 'nota') { nuevo.text = val; }
+  else return; // cable u otros: nada que aplicar
+  const cambio = Object.keys(nuevo).some(k => el[k] !== nuevo[k]);
+  if (!cambio) return;
+  pushHistory();            // registra para deshacer Y marca que hay que guardar/sincronizar
+  Object.assign(el, nuevo);
+  redraw();
+}
+
+// aplicar=true (por defecto): confirma lo escrito antes de cerrar.
+function closePopup(aplicar = true) {
+  if (aplicar) aplicarCambiosPopup();
+  document.getElementById('elemPopup').classList.remove('open');
+  popupElement = null;
+}
 
 document.getElementById('popupOk').onclick = () => {
   if (!popupElement) return;
-  pushHistory(); // registra el cambio (para deshacer) Y marca que hay que guardar/sincronizar
-  const labelInput = document.getElementById('popupLabel');
-  const metersInput = document.getElementById('popupMeters');
-  const bgCheck = document.getElementById('popupBg');
-  const sizeInput = document.getElementById('popupSize');
-  const boldCheck = document.getElementById('popupBold');
-  const cableSel = document.getElementById('popupCable');
-  const val = labelInput.value;
-  const m = +metersInput.value || 0;
-  const fs = +sizeInput.value || 14;
-  if (popupElement.type === 'elem') { popupElement.label = val; popupElement.cableId = cableSel.value || null; }
-  else if (popupElement.type === 'tramo') {
-    popupElement.letra = val.toUpperCase(); popupElement.meters = m; popupElement.fontSize = fs;
-    popupElement.cableId = cableSel.value || null;
-  }
-  else if (popupElement.type === 'valona') { popupElement.meters = m; popupElement.cableId = cableSel.value || null; }
-  else if (popupElement.type === 'text') {
-    popupElement.text = val.replace(/\|/g, '\n');
-    popupElement.background = bgCheck.checked;
-    popupElement.fontSize = fs;
-    popupElement.bold = boldCheck.checked;
-  }
-  else if (popupElement.type === 'nota') { popupElement.text = val; }
-  closePopup();
-  redraw();
+  aplicarCambiosPopup();
+  closePopup(false);
 };
 
 document.getElementById('popupDel').onclick = () => {
@@ -1876,7 +1886,7 @@ document.getElementById('popupDel').onclick = () => {
     if (state.activeCableId === popupElement.id) state.activeCableId = null;
   }
   state.elements = state.elements.filter(e => e.id !== popupElement.id);
-  closePopup();
+  closePopup(false);
   redraw();
 };
 
@@ -1893,7 +1903,7 @@ document.getElementById('popupDelNear').onclick = () => {
   pushHistory();
   state.elements = state.elements.filter(e => !toRemove.includes(e));
   toRemove.forEach(r => { if (state.activeCableId === r.id) state.activeCableId = null; });
-  closePopup();
+  closePopup(false);
   redraw();
   toast(`Borrados ${toRemove.length} elementos`);
 };
@@ -3008,25 +3018,19 @@ function _thumbFromDataUrl(dataUrl) {
     img.src = dataUrl;
   });
 }
-// Sube o actualiza un JSON con nombre 'fname' dentro de la carpeta 'folderId'.
-// appProps (opcional) guarda metadatos ligeros (ej. la fecha) para poder
-// comparar versiones SIN descargar el archivo entero (sincronización rápida).
-async function _driveUpsertJson(folderId, fname, blob, appProps) {
+// Sube o actualiza un JSON con nombre 'fname' dentro de la carpeta 'folderId'
+async function _driveUpsertJson(folderId, fname, blob) {
   const token = await _driveGetToken(false);
   const q = `name='${fname.replace(/'/g,"\\'")}' and '${folderId}' in parents and trashed=false`;
   const sr = await _driveFetch('https://www.googleapis.com/drive/v3/files?q=' + encodeURIComponent(q) + '&fields=files(id)');
   const ex = (await sr.json()).files;
-  const meta = appProps ? { appProperties: appProps } : {};
-  const form = new FormData();
   if (ex && ex.length) {
-    // actualizar contenido + metadatos en UNA sola llamada
-    form.append('metadata', new Blob([JSON.stringify(meta)], { type: 'application/json' }));
-    form.append('file', blob);
-    await fetch('https://www.googleapis.com/upload/drive/v3/files/' + ex[0].id + '?uploadType=multipart',
-      { method: 'PATCH', headers: { Authorization: 'Bearer ' + token }, body: form });
+    // actualizar el contenido del archivo existente (método simple y fiable)
+    await fetch('https://www.googleapis.com/upload/drive/v3/files/' + ex[0].id + '?uploadType=media',
+      { method: 'PATCH', headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' }, body: blob });
   } else {
-    meta.name = fname; meta.parents = [folderId];
-    form.append('metadata', new Blob([JSON.stringify(meta)], { type: 'application/json' }));
+    const form = new FormData();
+    form.append('metadata', new Blob([JSON.stringify({ name: fname, parents: [folderId] })], { type: 'application/json' }));
     form.append('file', blob);
     await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart',
       { method: 'POST', headers: { Authorization: 'Bearer ' + token }, body: form });
@@ -3049,8 +3053,8 @@ async function subirProyectoNube(entry) {
     imgDataUrl
   };
   const blob = new Blob([JSON.stringify(payload)], { type: 'application/json' });
-  // 1) Copia de trabajo (siempre la última) en _Proyectos — con la fecha en metadatos
-  await _driveUpsertJson(folderId, entry.id + '.json', blob, { fecha: entry.fecha || '' });
+  // 1) Copia de trabajo (siempre la última) en _Proyectos
+  await _driveUpsertJson(folderId, entry.id + '.json', blob);
   // 2) Copia fechada del día (histórico) — sobrescribe la de hoy
   try {
     const hoy = new Date().toISOString().slice(0, 10); // AAAA-MM-DD
@@ -3062,7 +3066,7 @@ async function subirProyectoNube(entry) {
 async function listarProyectosNube() {
   const folderId = await _driveProyFolder();
   const q = `'${folderId}' in parents and trashed=false and mimeType='application/json'`;
-  const r = await _driveFetch('https://www.googleapis.com/drive/v3/files?q=' + encodeURIComponent(q) + '&fields=files(id,name,appProperties)&pageSize=1000');
+  const r = await _driveFetch('https://www.googleapis.com/drive/v3/files?q=' + encodeURIComponent(q) + '&fields=files(id,name)&pageSize=1000');
   // Excluir archivos internos como _deleted.json (no son proyectos)
   return ((await r.json()).files || []).filter(f => !f.name.startsWith('_'));
 }
@@ -3163,12 +3167,8 @@ async function sincronizarConNube() {
 
     let locales = await listarProyectos();
     const nubeFiles = await listarProyectosNube();
-    const nubeMap = {}, nubeFecha = {};
-    nubeFiles.forEach(f => {
-      const id = f.name.replace(/\.json$/, '');
-      nubeMap[id] = f.id;
-      nubeFecha[id] = (f.appProperties && f.appProperties.fecha) || null; // fecha sin descargar
-    });
+    const nubeMap = {};
+    nubeFiles.forEach(f => { nubeMap[f.name.replace(/\.json$/, '')] = f.id; });
 
     // RED DE SEGURIDAD: proyectos que existen aquí pero fueron borrados en otro dispositivo
     const borradosEnOtro = locales.filter(p => tomb.includes(p.id));
@@ -3190,25 +3190,26 @@ async function sincronizarConNube() {
     let hechos = 0, subidos = 0, bajados = 0;
     const paso = () => { hechos++; _syncBanner(true, `🔄 Sincronizando…  ${hechos}/${total}  (↑${subidos} ↓${bajados})`, 'curso', 14 + (hechos / total) * 80); };
 
+    // Procesa una lista en lotes de 'n' en paralelo (más rápido que uno a uno)
+    const enLotes = async (items, n, fn) => {
+      for (let i = 0; i < items.length; i += n) await Promise.all(items.slice(i, i + n).map(fn));
+    };
     // Subir los que no están en la nube
-    for (const p of locales) { if (!nubeMap[p.id]) { await subirProyectoNube(p); subidos++; paso(); } }
+    await enLotes(locales.filter(p => !nubeMap[p.id]), 4, async (p) => { await subirProyectoNube(p); subidos++; paso(); });
     // Bajar los que están solo en la nube
-    for (const id of cloudOnly) { await descargarProyectoNube(nubeMap[id]); bajados++; paso(); }
+    await enLotes(cloudOnly, 4, async (id) => { await descargarProyectoNube(nubeMap[id]); bajados++; paso(); });
     // Borrar en la nube los marcados como borrados
     for (const id in nubeMap) { if (tomb.includes(id)) await _borrarJsonNube(id); }
-    // Comparar los que están en ambos — por FECHA de metadatos (sin descargar la imagen)
-    for (const p of locales) {
-      if (nubeMap[p.id] && !tomb.includes(p.id)) {
-        let rf = nubeFecha[p.id];
-        if (rf == null) { // archivo antiguo sin metadatos: descargar solo para leer la fecha
-          const r = await _driveFetch('https://www.googleapis.com/drive/v3/files/' + nubeMap[p.id] + '?alt=media');
-          rf = (await r.json()).fecha || '';
-        }
-        if ((rf || '') > (p.fecha || '')) { await descargarProyectoNube(nubeMap[p.id]); bajados++; }
-        else if ((p.fecha || '') > (rf || '')) { await subirProyectoNube(p); subidos++; }
-        paso();
-      }
-    }
+    // Comparar los que están en ambos: se lee la fecha REAL del archivo (fiable) y
+    // gana la versión más nueva. Se hace en paralelo por lotes para que sea rápido.
+    const ambos = locales.filter(p => nubeMap[p.id] && !tomb.includes(p.id));
+    await enLotes(ambos, 4, async (p) => {
+      const r = await _driveFetch('https://www.googleapis.com/drive/v3/files/' + nubeMap[p.id] + '?alt=media');
+      const rf = (await r.json()).fecha || '';
+      if (rf > (p.fecha || '')) { await descargarProyectoNube(nubeMap[p.id]); bajados++; }
+      else if ((p.fecha || '') > rf) { await subirProyectoNube(p); subidos++; }
+      paso();
+    });
     await _subirTombstonesNube(tomb).catch(()=>{});
     _filtroProyectos = 'todos';
     refrescarPanelProyectos();
