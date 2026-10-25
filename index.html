@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no, viewport-fit=cover">
-<title>Editor de Planos DIGI v9.12</title>
+<title>Editor de Planos DIGI v9.13</title>
 <meta name="theme-color" content="#1e2a3a">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -418,7 +418,7 @@
 <div class="app">
 
   <div class="topbar">
-    <span class="logo">DIGI<span class="ver">v9.12</span></span>
+    <span class="logo">DIGI<span class="ver">v9.13</span></span>
     <button id="btnHome" title="Ir al inicio" style="display:none">🏠</button>
     <span id="topbarTitle" style="font-size:12px;font-weight:600;color:#cbd5e1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:40vw;"></span>
     <span class="spacer"></span>
@@ -440,7 +440,7 @@
       <div class="logo-wrap">
         <div class="logo-main">DIGI</div>
         <div class="logo-sub">Editor de Planos</div>
-        <div class="logo-ver">v9.12</div>
+        <div class="logo-ver">v9.13</div>
       </div>
       <div class="cable-line"></div>
       <p>Carga una imagen o PDF del plano base para comenzar</p>
@@ -2080,6 +2080,7 @@ stageEl.addEventListener('touchstart', (e) => {
     pinch = { dist: Math.sqrt(dx*dx + dy*dy), scale: state.scale, panX: state.panX, panY: state.panY, cx: (t0.clientX + t1.clientX)/2, cy: (t0.clientY + t1.clientY)/2 };
     e.preventDefault();
   } else if (e.touches.length === 1 && !pinch) {
+    e.preventDefault(); // evita los eventos de ratón "fantasma" que dispararían el handler 2 veces
     onPointerDown(e);
   }
 }, { passive: false });
@@ -2104,7 +2105,7 @@ stageEl.addEventListener('touchmove', (e) => {
 
 stageEl.addEventListener('touchend', (e) => {
   if (e.touches.length < 2) pinch = null;
-  if (e.touches.length === 0) onPointerUp(e);
+  if (e.touches.length === 0) { if (e.cancelable) e.preventDefault(); onPointerUp(e); }
 }, { passive: false });
 
 stageEl.addEventListener('touchcancel', () => { pinch = null; dragState = null; clearLongPress(); stageEl.classList.remove('panning'); });
