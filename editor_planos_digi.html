@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no, viewport-fit=cover">
-<title>Editor de Planos DIGI v9.14</title>
+<title>Editor de Planos DIGI v9.15</title>
 <meta name="theme-color" content="#1e2a3a">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -418,7 +418,7 @@
 <div class="app">
 
   <div class="topbar">
-    <span class="logo">DIGI<span class="ver">v9.14</span></span>
+    <span class="logo">DIGI<span class="ver">v9.15</span></span>
     <button id="btnHome" title="Ir al inicio" style="display:none">🏠</button>
     <span id="topbarTitle" style="font-size:12px;font-weight:600;color:#cbd5e1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:40vw;"></span>
     <span class="spacer"></span>
@@ -440,7 +440,7 @@
       <div class="logo-wrap">
         <div class="logo-main">DIGI</div>
         <div class="logo-sub">Editor de Planos</div>
-        <div class="logo-ver">v9.14</div>
+        <div class="logo-ver">v9.15</div>
       </div>
       <div class="cable-line"></div>
       <p>Carga una imagen o PDF del plano base para comenzar</p>
@@ -563,7 +563,8 @@
   <div style="font-size:11px;color:#9ca3af;margin-bottom:8px;line-height:1.4">
     Conecta Drive para sincronizar tus proyectos editables entre el móvil y el PC (botón 🔄 en 🕒 Recientes). Sirve también de copia de seguridad.
   </div>
-  <div id="driveStatus" style="font-size:11px;color:#9ca3af;margin-bottom:8px;">Estado: sin conectar</div>
+  <div id="driveStatus" style="font-size:11px;color:#9ca3af;margin-bottom:4px;">Estado: sin conectar</div>
+  <div id="driveCuenta" style="font-size:12px;font-weight:700;color:#e5e7eb;margin-bottom:8px;display:none;"></div>
   <div style="display:flex;gap:8px;flex-wrap:wrap;">
     <button onclick="driveConectar()" style="flex:1;min-width:120px;padding:9px;border-radius:6px;background:#2563eb;color:#fff;font-weight:600;border:none;cursor:pointer;font-size:12px;">🔑 Conectar Drive</button>
     <button onclick="driveDesconectar()" style="flex:1;min-width:120px;padding:9px;border-radius:6px;background:#1f2530;color:#e5e7eb;font-weight:600;border:none;cursor:pointer;font-size:12px;">Desconectar</button>
@@ -2145,7 +2146,7 @@ stageEl.addEventListener('contextmenu', (e) => e.preventDefault());
 // ============================================================
 // PANEL
 // ============================================================
-document.getElementById('btnSettings').onclick = () => openPanel('settingsPanel');
+document.getElementById('btnSettings').onclick = () => { openPanel('settingsPanel'); _mostrarCuentaDrive(); };
 document.getElementById('btnProject').onclick = () => openPanel('projectPanel');
 document.getElementById('btnRecientes').onclick = () => { _filtroProyectos = 'curso'; _filtroPeriodo = ''; _busquedaProyectos = ''; const bi = document.getElementById('buscarProyecto'); if (bi) bi.value = ''; openPanel('projectsPanel'); refrescarPanelProyectos(); };
 document.getElementById('fileInputEditable').onchange = (e) => { const f = e.target.files[0]; if (f) importarEditable(f); e.target.value = ''; };
@@ -2903,6 +2904,23 @@ function setDriveStatus(txt, color) {
   if (el) { el.textContent = 'Estado: ' + txt; el.style.color = color || '#9ca3af'; }
 }
 
+// Muestra en Ajustes qué cuenta de Google está conectada (para no sincronizar sin
+// querer con la personal). Usa la API de Drive que ya tenemos (sin permisos nuevos).
+async function _mostrarCuentaDrive() {
+  const el = document.getElementById('driveCuenta');
+  if (!el) return;
+  if (!driveClientId() || localStorage.getItem('digi_drive_connected') !== '1') { el.style.display = 'none'; return; }
+  try {
+    const r = await _driveFetch('https://www.googleapis.com/drive/v3/about?fields=user(emailAddress,displayName)');
+    const u = (await r.json()).user || {};
+    if (u.emailAddress) {
+      el.textContent = '👤 Cuenta: ' + u.emailAddress;
+      el.style.display = 'block';
+    } else { el.style.display = 'none'; }
+  } catch (e) { el.style.display = 'none'; }
+}
+window._mostrarCuentaDrive = _mostrarCuentaDrive;
+
 function _cargarGIS() {
   if (_gisLoaded) return Promise.resolve();
   return new Promise((res, rej) => {
@@ -2985,6 +3003,7 @@ async function driveConectar() {
     // Conectar SIEMPRE con diálogo (es un toque explícito del usuario): así es fiable
     await _driveGetToken(true);
     setDriveStatus('conectado ✓', '#22c55e');
+    _mostrarCuentaDrive(); // muestra qué cuenta es
     toast('Drive conectado');
     sincronizarConNube(); // y sincroniza solo, para no tener que pulsar también 🔄
   } catch (e) {
@@ -2997,6 +3016,7 @@ function driveDesconectar() {
   _driveToken = null; _driveTokenExp = 0;
   localStorage.removeItem('digi_drive_connected');
   setDriveStatus('desconectado', '#9ca3af');
+  const c = document.getElementById('driveCuenta'); if (c) c.style.display = 'none';
   toast('Drive desconectado');
 }
 
@@ -3367,6 +3387,7 @@ if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
     try {
       await _driveGetToken(false);              // reconexión silenciosa (sin diálogo)
       setDriveStatus('conectado ✓', '#22c55e');
+      _mostrarCuentaDrive();                    // muestra qué cuenta es
       await sincronizarConNube();               // sincroniza automáticamente
     } catch (e) {
       // Si el navegador no deja reconectar en silencio, el usuario pulsa 🔑 Conectar
