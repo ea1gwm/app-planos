@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no, viewport-fit=cover">
-<title>Editor de Planos DIGI v9.18</title>
+<title>Editor de Planos DIGI v9.19</title>
 <meta name="theme-color" content="#1e2a3a">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -418,7 +418,7 @@
 <div class="app">
 
   <div class="topbar">
-    <span class="logo">DIGI<span class="ver">v9.18</span></span>
+    <span class="logo">DIGI<span class="ver">v9.19</span></span>
     <button id="btnHome" title="Ir al inicio" style="display:none">🏠</button>
     <span id="topbarTitle" style="font-size:12px;font-weight:600;color:#cbd5e1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:40vw;"></span>
     <span class="spacer"></span>
@@ -440,7 +440,7 @@
       <div class="logo-wrap">
         <div class="logo-main">DIGI</div>
         <div class="logo-sub">Editor de Planos</div>
-        <div class="logo-ver">v9.18</div>
+        <div class="logo-ver">v9.19</div>
       </div>
       <div class="cable-line"></div>
       <p>Carga una imagen o PDF del plano base para comenzar</p>
@@ -629,6 +629,32 @@
 
 <div class="toast" id="toast" style="display:none"></div>
 
+<!-- Editor de la tabla de empalmes -->
+<div id="tablaEditor" style="display:none;position:fixed;inset:0;z-index:5000;background:rgba(0,0,0,0.65);justify-content:center;align-items:flex-start;overflow:auto;padding:16px;box-sizing:border-box;">
+  <div style="background:#141b25;border:1px solid #2a3140;border-radius:12px;max-width:780px;width:100%;margin:auto;padding:16px;box-sizing:border-box;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+      <h2 style="margin:0;font-size:16px;color:#e5e7eb;">📊 Tabla de empalmes</h2>
+      <button onclick="cerrarTablaEditor()" style="background:none;border:none;color:#9ca3af;font-size:20px;cursor:pointer;">✕</button>
+    </div>
+    <div style="font-size:11px;color:#9ca3af;margin-bottom:10px;line-height:1.4">Rellena las filas; las columnas se alinean solas. La <b>cabecera</b> (proyecto/equipo) la pones a mano en el plano. La <b>SUC</b> normalmente va vacía.</div>
+    <div style="display:flex;gap:4px;font-size:10px;color:#6b7280;font-weight:700;margin-bottom:4px;padding:0 2px;">
+      <span style="flex:3">TIPO DE CABLE</span><span style="flex:1">DE</span><span style="flex:1">A</span><span style="flex:1">METROS</span><span style="flex:1">SUC</span><span style="flex:1">FECHA</span><span style="width:34px;flex:none"></span>
+    </div>
+    <div id="tablaFilas"></div>
+    <button onclick="tablaAnadirFila()" style="margin-top:4px;padding:8px 12px;border-radius:6px;border:none;background:#2563eb;color:#fff;font-weight:600;cursor:pointer;font-size:12px;">➕ Añadir fila</button>
+    <div style="margin-top:14px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+      <label style="font-size:12px;color:#e5e7eb;">Pie "Malla" (opcional):</label>
+      <input id="tablaMalla" placeholder="Malla 3 celdas 50mm" style="flex:2;min-width:140px;padding:6px;border-radius:4px;border:1px solid #2a3140;background:#1f2530;color:#e5e7eb;font-size:12px;">
+      <input id="tablaMallaCifra" placeholder="cifra" style="width:90px;padding:6px;border-radius:4px;border:1px solid #2a3140;background:#1f2530;color:#e5e7eb;font-size:12px;">
+    </div>
+    <div style="margin-top:12px;display:flex;gap:10px;align-items:center;">
+      <label style="font-size:12px;color:#e5e7eb;">Tamaño de letra:</label>
+      <input id="tablaFont" type="number" min="6" max="40" value="11" style="width:70px;padding:6px;border-radius:4px;border:1px solid #2a3140;background:#1f2530;color:#e5e7eb;font-size:12px;">
+      <button onclick="cerrarTablaEditor()" style="margin-left:auto;padding:9px 18px;border-radius:6px;border:none;background:#16a34a;color:#fff;font-weight:700;cursor:pointer;font-size:13px;">Hecho</button>
+    </div>
+  </div>
+</div>
+
 <!-- Banner de progreso de sincronización -->
 <div id="syncBanner" style="display:none;position:fixed;top:54px;left:50%;transform:translateX(-50%);z-index:4000;background:rgba(10,14,20,0.96);border:1px solid #2a3140;border-radius:12px;padding:11px 16px;box-shadow:0 8px 24px rgba(0,0,0,0.55);min-width:230px;max-width:92vw;backdrop-filter:blur(6px);">
   <div id="syncBannerTxt" style="font-size:12.5px;color:#e5e7eb;font-weight:700;"></div>
@@ -663,6 +689,9 @@ const TRAMO_LETRAS = [
   { letra: 'X', desc: 'Subc. otra compañía'   },
   { letra: 'D', desc: 'Salida lateral'        },
 ];
+
+// Columnas de la tabla de empalmes (cuadro de medidas)
+const TABLA_COLS = ['TIPO DE CABLE, CAPA Y FABRICANTE', 'DE', 'A', 'METROS', 'SUC', 'FECHA'];
 
 const ELEM_TYPES = [
   { id: 'CR',    label: 'CR'    }, { id: 'ARQ',   label: 'ARQ'   },
@@ -811,6 +840,7 @@ function buildToolbar() {
         { html: '⬜ Tapar texto', onClick: () => selectTool('cover', {}) },
         { html: '<b style="color:#f87171">✱</b> Poner asterisco', accent: '#f87171', onClick: () => selectTool('nota', {}) },
         { html: '<b style="color:#f87171">✱</b> Insertar nota de asteriscos', accent: '#f87171', onClick: () => insertarListaNotas() },
+        { html: '📊 Tabla de empalmes', onClick: () => insertarTablaEmpalmes() },
       ]);
     } else if (c.type === 'pan') {
       b.innerHTML = `🖐 Mover`;
@@ -1015,6 +1045,24 @@ function redraw() {
   }
   updateActiveCableUI();
 }
+// Calcula la geometría de la tabla de empalmes (anchos de columna según el contenido)
+function _tablaLayout(el) {
+  const fs = (el.fontSize || 11) * (el.size || 1);
+  const charW = fs * 0.62;        // ancho de carácter (fuente monoespaciada)
+  const pad = charW * 1.2;        // relleno a cada lado de la celda
+  const rowH = fs * 1.7;
+  const cols = TABLA_COLS;
+  const rows = el.rows || [];
+  const colW = cols.map((c, ci) => {
+    let maxLen = c.length;
+    rows.forEach(r => { const v = String(r[ci] || ''); if (v.length > maxLen) maxLen = v.length; });
+    return Math.round(maxLen * charW + 2 * pad);
+  });
+  const totalW = colW.reduce((a, b) => a + b, 0);
+  const filasGrid = 1 + rows.length;                 // cabecera + filas de datos
+  const totalH = (filasGrid + (el.malla ? 1 : 0)) * rowH;
+  return { fs, charW, pad, rowH, cols, rows, colW, totalW, totalH, filasGrid };
+}
 function renderElement(svg, el) {
   const isSel = el.id === state.selectedId;
   const isActive = el.type === 'cable' && el.id === state.activeCableId;
@@ -1162,6 +1210,47 @@ function renderElement(svg, el) {
       g.appendChild(svgEl('rect', { x: el.x + off, y: el.y + off, width: 14, height: 14, rx: 3, fill: '#2563eb', stroke: '#fff', 'stroke-width': 2, 'data-resize-id': id, style: 'cursor:nwse-resize' }));
     }
     svg.appendChild(g);
+  } else if (el.type === 'tabla') {
+    const L = _tablaLayout(el);
+    const g = svgEl('g', { class: 'marker' + sel, 'data-elem-id': id });
+    const x0 = el.x, y0 = el.y, ff = "'Courier New', monospace";
+    // Fondo blanco + borde exterior
+    g.appendChild(svgEl('rect', { x: x0, y: y0, width: L.totalW, height: L.totalH, fill: '#ffffff', stroke: '#000', 'stroke-width': 1, 'data-elem-id': id }));
+    // Separadores de columna (solo en la rejilla cabecera+datos)
+    let cx = x0;
+    for (let ci = 0; ci < L.colW.length; ci++) {
+      if (ci > 0) g.appendChild(svgEl('line', { x1: cx, y1: y0, x2: cx, y2: y0 + L.filasGrid * L.rowH, stroke: '#000', 'stroke-width': 0.6, 'data-elem-id': id }));
+      cx += L.colW[ci];
+    }
+    // Filas: cabecera + datos
+    const filas = [L.cols].concat((el.rows || []).map(r => L.cols.map((_, ci) => String(r[ci] || ''))));
+    filas.forEach((cells, ri) => {
+      const ry = y0 + ri * L.rowH;
+      if (ri > 0) g.appendChild(svgEl('line', { x1: x0, y1: ry, x2: x0 + L.totalW, y2: ry, stroke: '#000', 'stroke-width': 0.6, 'data-elem-id': id }));
+      let tx = x0;
+      cells.forEach((val, ci) => {
+        const t = svgEl('text', { x: tx + L.pad, y: ry + L.rowH * 0.68, 'font-size': L.fs, 'font-family': ff, 'font-weight': ri === 0 ? '700' : '600', fill: '#000', 'data-elem-id': id });
+        t.textContent = val;
+        g.appendChild(t);
+        tx += L.colW[ci];
+      });
+    });
+    // Fila de malla (opcional): etiqueta a la izquierda + cifra bajo METROS
+    if (el.malla) {
+      const ry = y0 + L.filasGrid * L.rowH;
+      g.appendChild(svgEl('line', { x1: x0, y1: ry, x2: x0 + L.totalW, y2: ry, stroke: '#000', 'stroke-width': 0.6, 'data-elem-id': id }));
+      const t = svgEl('text', { x: x0 + L.pad, y: ry + L.rowH * 0.68, 'font-size': L.fs, 'font-family': ff, 'font-weight': '700', fill: '#000', 'data-elem-id': id });
+      t.textContent = el.malla;
+      g.appendChild(t);
+      if (el.mallaCifra) {
+        let mx = x0; for (let i = 0; i < 3 && i < L.colW.length; i++) mx += L.colW[i];
+        const tc = svgEl('text', { x: mx + L.pad, y: ry + L.rowH * 0.68, 'font-size': L.fs, 'font-family': ff, 'font-weight': '700', fill: '#000', 'data-elem-id': id });
+        tc.textContent = el.mallaCifra;
+        g.appendChild(tc);
+      }
+    }
+    if (isSel) g.appendChild(svgEl('rect', { x: x0 - 2, y: y0 - 2, width: L.totalW + 4, height: L.totalH + 4, fill: 'none', stroke: '#2563eb', 'stroke-width': 2, 'data-elem-id': id }));
+    svg.appendChild(g);
   }
 }
 
@@ -1228,6 +1317,10 @@ function findNearestCable(x, y, maxDist = 120) {
 // Find elements within radius of a stage point
 function findElementsNear(x, y, radius = 22) {
   return state.elements.filter(el => {
+    if (el.type === 'tabla') {
+      const L = _tablaLayout(el);
+      return x >= el.x - 4 && x <= el.x + L.totalW + 4 && y >= el.y - 4 && y <= el.y + L.totalH + 4;
+    }
     if (el.x !== undefined && el.y !== undefined) return Math.hypot(el.x - x, el.y - y) < radius;
     if (el.type === 'cable') return el.points.some(p => Math.hypot(p.x - x, p.y - y) < radius);
     if (el.type === 'highlight') {
@@ -1248,6 +1341,7 @@ function describeElement(el) {
   if (el.type === 'text') return `Texto "${(el.text || '').slice(0, 20)}"`;
   if (el.type === 'xmark') return `Marca X`;
   if (el.type === 'nota') return `Nota ✱${el.num}`;
+  if (el.type === 'tabla') return `Tabla de empalmes`;
   return el.type;
 }
 
@@ -1281,6 +1375,76 @@ function insertarListaNotas() {
   toast(`✓ Lista de ${notas.length} nota(s) ${bloque ? 'actualizada' : 'creada'}`);
 }
 window.insertarListaNotas = insertarListaNotas;
+
+// ── TABLA DE EMPALMES (cuadro de medidas) ──────────────────────────
+let _tablaEditando = null;
+function insertarTablaEmpalmes() {
+  if (!state.bgLoaded) { toast('Carga un plano primero'); return; }
+  pushHistory();
+  const el = {
+    id: newId(), type: 'tabla',
+    x: Math.round(state.bgWidth * 0.45), y: Math.round(state.bgHeight * 0.55),
+    fontSize: 11, size: 1,
+    rows: [['', '', '', '', '', '']],
+    malla: '', mallaCifra: ''
+  };
+  state.elements.push(el);
+  state.selectedId = el.id;
+  redraw();
+  abrirTablaEditor(el);
+}
+window.insertarTablaEmpalmes = insertarTablaEmpalmes;
+
+function abrirTablaEditor(el) {
+  _tablaEditando = el;
+  _renderTablaEditorFilas();
+  const m = document.getElementById('tablaMalla'); m.value = el.malla || ''; m.oninput = () => { el.malla = m.value; redraw(); autoGuardar(); };
+  const mc = document.getElementById('tablaMallaCifra'); mc.value = el.mallaCifra || ''; mc.oninput = () => { el.mallaCifra = mc.value; redraw(); autoGuardar(); };
+  const f = document.getElementById('tablaFont'); f.value = el.fontSize || 11; f.oninput = () => { el.fontSize = +f.value || 11; redraw(); autoGuardar(); };
+  document.getElementById('tablaEditor').style.display = 'flex';
+}
+window.abrirTablaEditor = abrirTablaEditor;
+
+function _renderTablaEditorFilas() {
+  const cont = document.getElementById('tablaFilas');
+  const el = _tablaEditando; if (!cont || !el) return;
+  cont.innerHTML = '';
+  const ph = ['12 FO ZTT', '01E…', '129…', 'm', 'SUC', 'dd/mm/aa'];
+  (el.rows || []).forEach((row, ri) => {
+    const fila = document.createElement('div');
+    fila.style.cssText = 'display:flex;gap:4px;margin-bottom:4px;align-items:center;';
+    TABLA_COLS.forEach((c, ci) => {
+      const inp = document.createElement('input');
+      inp.type = 'text'; inp.value = row[ci] || ''; inp.placeholder = ph[ci];
+      inp.style.cssText = 'flex:' + (ci === 0 ? 3 : 1) + ';min-width:0;padding:6px;border-radius:4px;border:1px solid #2a3140;background:#1f2530;color:#e5e7eb;font-size:12px;';
+      inp.oninput = () => { el.rows[ri][ci] = inp.value; redraw(); autoGuardar(); };
+      fila.appendChild(inp);
+    });
+    const del = document.createElement('button');
+    del.textContent = '🗑'; del.title = 'Borrar fila';
+    del.style.cssText = 'width:34px;flex:none;padding:6px 4px;border-radius:4px;border:none;background:#7f1d1d;color:#fecaca;cursor:pointer;';
+    del.onclick = () => { el.rows.splice(ri, 1); redraw(); autoGuardar(); _renderTablaEditorFilas(); };
+    fila.appendChild(del);
+    cont.appendChild(fila);
+  });
+}
+function tablaAnadirFila() {
+  if (!_tablaEditando) return;
+  _tablaEditando.rows.push(['', '', '', '', '', '']);
+  redraw(); autoGuardar(); _renderTablaEditorFilas();
+}
+window.tablaAnadirFila = tablaAnadirFila;
+function cerrarTablaEditor() {
+  const el = _tablaEditando;
+  // Si quedó completamente vacía, se quita (no dejar una tabla vacía en el plano)
+  if (el && (!el.rows || el.rows.every(r => r.every(c => !String(c).trim()))) && !el.malla) {
+    state.elements = state.elements.filter(e => e.id !== el.id);
+  }
+  _tablaEditando = null;
+  document.getElementById('tablaEditor').style.display = 'none';
+  autoGuardar(); redraw();
+}
+window.cerrarTablaEditor = cerrarTablaEditor;
 
 // Get a representative (x,y) for any element type
 function getElementCenter(el) {
@@ -1595,12 +1759,16 @@ function onPointerUp(evt) {
         if (el.type === 'cable') {
           setActiveCable(el);
           toast('Activo: ' + el.cableType);
+        } else if (el.type === 'tabla') {
+          pushHistory(); abrirTablaEditor(el);
         } else {
           openElemPopup(el, evt);
         }
       } else {
-        // Multiple elements: show stack picker
-        showStackPicker(near, evt);
+        // Varios elementos: si hay una tabla entre ellos, prioriza editarla
+        const tabla = near.find(e => e.type === 'tabla');
+        if (tabla) { pushHistory(); abrirTablaEditor(tabla); }
+        else showStackPicker(near, evt);
       }
     }
   }
@@ -2527,6 +2695,7 @@ function _textoBuscable(p) {
     if (el.text) t += ' ' + el.text;              // textos y notas (*)
     if (el.label) t += ' ' + el.label;            // etiquetas de ARQ/CR
     if (el.letra) t += ' ' + (el.meters || '') + el.letra; // tramos: "43B"
+    if (el.type === 'tabla') (el.rows || []).forEach(r => { t += ' ' + r.join(' '); }); // empalmes de la tabla
   });
   return _normalizaTexto(t);
 }
