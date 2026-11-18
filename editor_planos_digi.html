@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no, viewport-fit=cover">
-<title>Editor de Planos DIGI v9.15</title>
+<title>Editor de Planos DIGI v9.16</title>
 <meta name="theme-color" content="#1e2a3a">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -418,7 +418,7 @@
 <div class="app">
 
   <div class="topbar">
-    <span class="logo">DIGI<span class="ver">v9.15</span></span>
+    <span class="logo">DIGI<span class="ver">v9.16</span></span>
     <button id="btnHome" title="Ir al inicio" style="display:none">🏠</button>
     <span id="topbarTitle" style="font-size:12px;font-weight:600;color:#cbd5e1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:40vw;"></span>
     <span class="spacer"></span>
@@ -440,7 +440,7 @@
       <div class="logo-wrap">
         <div class="logo-main">DIGI</div>
         <div class="logo-sub">Editor de Planos</div>
-        <div class="logo-ver">v9.15</div>
+        <div class="logo-ver">v9.16</div>
       </div>
       <div class="cable-line"></div>
       <p>Carga una imagen o PDF del plano base para comenzar</p>
@@ -2732,6 +2732,8 @@ async function refrescarPanelProyectos() {
         refrescarPanelProyectos();
         _syncProyectoSiConectado(p.id);
       }));
+      // Enviar el plano ORIGINAL (sin anotaciones)
+      acc.appendChild(mkBtn('📄 Original', '#0f766e', '#ccfbf1', () => enviarOriginal(p.id)));
       // Borrar
       acc.appendChild(mkBtn('🗑', '#7f1d1d', '#fecaca', async () => {
         if (!confirm('¿Borrar "' + nombreMostrar + '"?\nSe borrará también en tus otros dispositivos al sincronizar.')) return;
@@ -2807,6 +2809,18 @@ async function exportarEditable() {
   const fname = _baseFilename() + '.dproject';
   await compartirOdescargar(blob, fname, 'application/json');
 }
+
+// Envía/descarga el plano ORIGINAL: la imagen de fondo tal como se cargó la primera
+// vez, SIN anotaciones (las anotaciones van por encima y no tocan el fondo guardado).
+async function enviarOriginal(id) {
+  const e = await _getProject(id);
+  if (!e || !e.imgBlob) { toast('No hay imagen original de este plano'); return; }
+  const mime = e.imgBlob.type || 'image/jpeg';
+  const ext = mime.includes('png') ? 'png' : 'jpg';
+  const base = ((e.alias && e.alias.trim()) || e.title || 'plano').replace(/[^\w\s\-\.]/g, '_').replace(/\s+/g, '_');
+  await compartirOdescargar(e.imgBlob, base + '_ORIGINAL.' + ext, mime);
+}
+window.enviarOriginal = enviarOriginal;
 
 // Importar un archivo .dproject — restaura plano + anotaciones editables
 async function importarEditable(file) {
