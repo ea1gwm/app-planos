@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no, viewport-fit=cover">
-<title>Editor de Planos DIGI v9.17</title>
+<title>Editor de Planos DIGI v9.18</title>
 <meta name="theme-color" content="#1e2a3a">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -418,7 +418,7 @@
 <div class="app">
 
   <div class="topbar">
-    <span class="logo">DIGI<span class="ver">v9.17</span></span>
+    <span class="logo">DIGI<span class="ver">v9.18</span></span>
     <button id="btnHome" title="Ir al inicio" style="display:none">🏠</button>
     <span id="topbarTitle" style="font-size:12px;font-weight:600;color:#cbd5e1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:40vw;"></span>
     <span class="spacer"></span>
@@ -440,7 +440,7 @@
       <div class="logo-wrap">
         <div class="logo-main">DIGI</div>
         <div class="logo-sub">Editor de Planos</div>
-        <div class="logo-ver">v9.17</div>
+        <div class="logo-ver">v9.18</div>
       </div>
       <div class="cable-line"></div>
       <p>Carga una imagen o PDF del plano base para comenzar</p>
@@ -2506,7 +2506,7 @@ async function crearProyectoActual() {
 const ESTADOS = {
   recibido:  { label: 'Recibido',  color: '#6b7280' },
   curso:     { label: 'En curso',  color: '#2563eb' },
-  terminado: { label: 'Terminado', color: '#d97706' },
+  terminado: { label: 'Pend. enviar', color: '#d97706' },
   enviado:   { label: 'Enviado',   color: '#16a34a' },
   otros:     { label: 'Otros',     color: '#8b5cf6' },
 };
@@ -2918,6 +2918,18 @@ function setDriveStatus(txt, color) {
   if (el) { el.textContent = 'Estado: ' + txt; el.style.color = color || '#9ca3af'; }
 }
 
+// Traduce errores técnicos de Drive a un mensaje claro para el usuario
+function _mensajeErrorDrive(msg) {
+  const m = String(msg || '').toLowerCase();
+  if (m.includes('popup') || m.includes('emergente'))
+    return 'El navegador bloqueó la ventana de Google. Permite las ventanas emergentes de este sitio y vuelve a pulsar 🔑 Conectar.';
+  if (m.includes('timeout'))
+    return 'Se agotó el tiempo. Revisa tu conexión y vuelve a intentarlo.';
+  if (m.includes('client') && m.includes('id'))
+    return 'Falta configurar el Client ID de Drive.';
+  return 'Error: ' + (msg || 'desconocido');
+}
+
 // Muestra en Ajustes qué cuenta de Google está conectada (para no sincronizar sin
 // querer con la personal). Usa la API de Drive que ya tenemos (sin permisos nuevos).
 async function _mostrarCuentaDrive() {
@@ -3024,8 +3036,9 @@ async function driveConectar() {
     toast('Drive conectado');
     sincronizarConNube(); // y sincroniza solo, para no tener que pulsar también 🔄
   } catch (e) {
-    setDriveStatus('error: ' + e.message, '#ef4444');
-    toast('Error Drive: ' + e.message);
+    const msg = _mensajeErrorDrive(e.message);
+    setDriveStatus(msg, '#ef4444');
+    toast(msg);
   }
 }
 
@@ -3308,7 +3321,7 @@ async function sincronizarConNube() {
       _syncBanner(true, `✓ Sincronizado · ↑${subidos} subidos · ↓${bajados} bajados`, 'ok', 100);
     }
   } catch (e) {
-    _syncBanner(true, '⚠️ Error al sincronizar: ' + e.message, 'error', 100);
+    _syncBanner(true, '⚠️ ' + _mensajeErrorDrive(e.message), 'error', 100);
     console.warn('sincronizarConNube:', e);
   } finally {
     _syncEnCurso = false;
