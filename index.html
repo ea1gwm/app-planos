@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no, viewport-fit=cover">
-<title>Editor de Planos DIGI v9.19</title>
+<title>Editor de Planos DIGI v9.20</title>
 <meta name="theme-color" content="#1e2a3a">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -418,7 +418,7 @@
 <div class="app">
 
   <div class="topbar">
-    <span class="logo">DIGI<span class="ver">v9.19</span></span>
+    <span class="logo">DIGI<span class="ver">v9.20</span></span>
     <button id="btnHome" title="Ir al inicio" style="display:none">🏠</button>
     <span id="topbarTitle" style="font-size:12px;font-weight:600;color:#cbd5e1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:40vw;"></span>
     <span class="spacer"></span>
@@ -440,7 +440,7 @@
       <div class="logo-wrap">
         <div class="logo-main">DIGI</div>
         <div class="logo-sub">Editor de Planos</div>
-        <div class="logo-ver">v9.19</div>
+        <div class="logo-ver">v9.20</div>
       </div>
       <div class="cable-line"></div>
       <p>Carga una imagen o PDF del plano base para comenzar</p>
@@ -840,7 +840,6 @@ function buildToolbar() {
         { html: '⬜ Tapar texto', onClick: () => selectTool('cover', {}) },
         { html: '<b style="color:#f87171">✱</b> Poner asterisco', accent: '#f87171', onClick: () => selectTool('nota', {}) },
         { html: '<b style="color:#f87171">✱</b> Insertar nota de asteriscos', accent: '#f87171', onClick: () => insertarListaNotas() },
-        { html: '📊 Tabla de empalmes', onClick: () => insertarTablaEmpalmes() },
       ]);
     } else if (c.type === 'pan') {
       b.innerHTML = `🖐 Mover`;
@@ -1679,9 +1678,26 @@ function onPointerMove(evt) {
     evt.preventDefault();
   } else if (dragState.type === 'elem-move') {
     const sp = getStagePoint(coords.x, coords.y);
-    dragState.hitEl.x = dragState.elX0 + (sp.x - dragState.startStageX);
-    dragState.hitEl.y = dragState.elY0 + (sp.y - dragState.startStageY);
+    let nx = dragState.elX0 + (sp.x - dragState.startStageX);
+    let ny = dragState.elY0 + (sp.y - dragState.startStageY);
+    // IMANTADO de alineación: si es un texto y hay otro texto cerca en la misma
+    // vertical (columna) u horizontal (fila), se alinea solo con él.
+    let snapX = null, snapY = null;
+    if (dragState.hitEl.type === 'text') {
+      const SN = 10 / (state.scale || 1); // tolerancia ~10 px en pantalla
+      let bx = SN + 1, by = SN + 1;
+      for (const o of state.elements) {
+        if (o === dragState.hitEl || o.type !== 'text' || o.x === undefined) continue;
+        const dx = Math.abs(o.x - nx); if (dx <= SN && dx < bx) { bx = dx; nx = o.x; snapX = o.x; }
+        const dy = Math.abs(o.y - ny); if (dy <= SN && dy < by) { by = dy; ny = o.y; snapY = o.y; }
+      }
+    }
+    dragState.hitEl.x = nx; dragState.hitEl.y = ny;
     redraw();
+    // Guías visuales mientras está imantado
+    const svg = document.getElementById('overlay');
+    if (snapX !== null) svg.appendChild(svgEl('line', { x1: snapX, y1: 0, x2: snapX, y2: state.bgHeight, stroke: '#2563eb', 'stroke-width': 1, 'stroke-dasharray': '6 4', 'stroke-opacity': '0.8' }));
+    if (snapY !== null) svg.appendChild(svgEl('line', { x1: 0, y1: snapY, x2: state.bgWidth, y2: snapY, stroke: '#2563eb', 'stroke-width': 1, 'stroke-dasharray': '6 4', 'stroke-opacity': '0.8' }));
     evt.preventDefault();
   } else if (dragState.type === 'highlight') {
     if (!dragState.hlEl) {
